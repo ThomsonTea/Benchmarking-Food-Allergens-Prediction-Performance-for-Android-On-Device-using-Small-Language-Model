@@ -1,11 +1,9 @@
 package edu.utem.ftmk.slm
 
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ServerTimestamp
-import java.util.Date
 
-/**
- * Represents a prediction result to be stored in Firebase
- */
 data class PredictionResult(
     val dataId: String = "",
     val name: String = "",
@@ -13,25 +11,32 @@ data class PredictionResult(
     val allergensRaw: String = "",
     val allergensMapped: String = "",
     val predictedAllergens: String = "",
-    
-    @ServerTimestamp
-    val timestamp: Date? = null,
-    
-    // Inference Metrics
+
+    // Timing metrics - THESE ARE CRITICAL!
     val latencyMs: Long = 0,
+    val ttftMs: Long = -1,      // Time To First Token
+    val itps: Long = -1,        // Input Tokens Per Second
+    val otps: Long = -1,        // Output Tokens Per Second
+    val oetMs: Long = -1,       // Output Evaluation Time
+
+    // Memory metrics
     val javaHeapKb: Long = 0,
     val nativeHeapKb: Long = 0,
     val totalPssKb: Long = 0,
-    val ttft: Long = 0,
-    val itps: Long = 0,
-    val otps: Long = 0,
-    val oet: Long = 0,
-    
-    // Additional info
+
+    // Device info
     val deviceModel: String = "",
-    val androidVersion: String = ""
+    val androidVersion: String = "",
+
+    // Accuracy tracking
+    val isCorrect: Boolean = false,
+
+    @ServerTimestamp
+    val timestamp: Timestamp? = null
 ) {
-    // Convert to map for Firebase
+    /**
+     * Convert to Map for Firebase storage
+     */
     fun toMap(): Map<String, Any?> {
         return hashMapOf(
             "dataId" to dataId,
@@ -40,17 +45,27 @@ data class PredictionResult(
             "allergensRaw" to allergensRaw,
             "allergensMapped" to allergensMapped,
             "predictedAllergens" to predictedAllergens,
-            "timestamp" to timestamp,
+
+            // Timing metrics - MAKE SURE THESE ARE INCLUDED!
             "latencyMs" to latencyMs,
+            "ttftMs" to ttftMs,
+            "itps" to itps,
+            "otps" to otps,
+            "oetMs" to oetMs,
+
+            // Memory metrics
             "javaHeapKb" to javaHeapKb,
             "nativeHeapKb" to nativeHeapKb,
             "totalPssKb" to totalPssKb,
-            "ttft" to ttft,
-            "itps" to itps,
-            "otps" to otps,
-            "oet" to oet,
+
+            // Device info
             "deviceModel" to deviceModel,
-            "androidVersion" to androidVersion
+            "androidVersion" to androidVersion,
+
+            // Accuracy
+            "isCorrect" to isCorrect,
+
+            "timestamp" to FieldValue.serverTimestamp()
         )
     }
 }
