@@ -1,55 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView 
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp">
+    android:layout_margin="8dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/cardBorder">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="16dp"
+        android:background="@color/cardBackground">
 
-        <!-- Food Name -->
+        <!-- Food Name and ID -->
         <TextView
             android:id="@+id/foodNameText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Food Name"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#333333" />
+            android:textColor="@color/textPrimary"
+            android:paddingBottom="4dp"/>
 
         <!-- Ingredients -->
         <TextView
             android:id="@+id/ingredientsText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:text="Ingredients: ..."
-            android:textSize="12sp"
-            android:textColor="#666666"
+            android:textSize="14sp"
+            android:textColor="@color/textSecondary"
             android:maxLines="2"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:paddingBottom="12dp"/>
 
         <!-- Divider -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="12dp"
-            android:background="#EEEEEE" />
+            android:background="@color/divider"
+            android:layout_marginBottom="12dp"/>
 
-        <!-- Expected vs Predicted -->
+        <!-- Prediction Results -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
 
+            <!-- Expected -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -60,21 +64,21 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Expected"
-                    android:textSize="11sp"
-                    android:textColor="#999999"
-                    android:textStyle="bold" />
+                    android:textSize="12sp"
+                    android:textColor="@color/textSecondary"
+                    android:textStyle="bold"/>
 
                 <TextView
                     android:id="@+id/expectedText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="fish, egg"
-                    android:textSize="13sp"
-                    android:textColor="#666666" />
-
+                    android:text="milk, egg"
+                    android:textSize="14sp"
+                    android:textColor="@color/textPrimary"
+                    android:paddingTop="4dp"/>
             </LinearLayout>
 
+            <!-- Predicted -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -85,42 +89,124 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Predicted"
-                    android:textSize="11sp"
-                    android:textColor="#999999"
-                    android:textStyle="bold" />
+                    android:textSize="12sp"
+                    android:textColor="@color/textSecondary"
+                    android:textStyle="bold"/>
 
                 <TextView
                     android:id="@+id/predictedText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="fish, egg"
-                    android:textSize="13sp"
-                    android:textColor="#4CAF50" />
-
+                    android:text="milk, egg"
+                    android:textSize="14sp"
+                    android:paddingTop="4dp"/>
             </LinearLayout>
-
         </LinearLayout>
 
-        <!-- Metrics -->
+        <!-- Performance Metrics Section -->
         <TextView
-            android:id="@+id/metricsText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Latency: 5.2s | Memory: 1.2GB"
-            android:textSize="11sp"
-            android:textColor="#999999" />
+            android:text="Performance Metrics"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/textSecondary"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"/>
 
-        <!-- Status Indicator -->
+        <!-- Metrics Grid -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Row 1: Latency and TTFT -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/latencyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Latency: 0.0s"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+
+                <TextView
+                    android:id="@+id/ttftText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="TTFT: 0ms"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+            </LinearLayout>
+
+            <!-- Row 2: ITPS and OTPS -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/itpsText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="ITPS: 0 tok/s"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+
+                <TextView
+                    android:id="@+id/otpsText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="OTPS: 0 tok/s"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+            </LinearLayout>
+
+            <!-- Row 3: OET and Memory -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/oetText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="OET: 0ms"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+
+                <TextView
+                    android:id="@+id/memoryText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Memory: 0.0MB"
+                    android:textSize="12sp"
+                    android:textColor="@color/metricText"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Firebase Status -->
         <TextView
             android:id="@+id/statusText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:text="✓ Saved to Firebase"
-            android:textSize="11sp"
-            android:textColor="#4CAF50" />
+            android:textSize="12sp"
+            android:textColor="@color/success"
+            android:paddingTop="12dp"/>
 
     </LinearLayout>
 

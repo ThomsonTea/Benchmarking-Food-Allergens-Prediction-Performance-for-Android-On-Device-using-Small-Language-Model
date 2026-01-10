@@ -19,20 +19,43 @@ static llama_model* g_model = nullptr;
 static llama_context* g_ctx = nullptr;
 static bool g_model_loaded = false;
 
-// Helper function to create prompt - IMPROVED VERSION
+// IMPROVED PROMPT WITH EXPLICIT RULES - Your Idea!
 std::string createAllergenPrompt(const std::string& ingredients) {
     std::stringstream ss;
     ss << "<|im_start|>system\n"
-       << "You identify allergens. "
-       << "Valid allergens: milk, egg, peanut, tree nut, wheat, soy, fish, shellfish, sesame.\n"
-       << "Format: output ONLY allergen names (comma-separated) or 'none'.\n"
-       << "Examples:\n"
-       << "Input: sugar, water → Output: none\n"
-       << "Input: milk, sugar → Output: milk\n"
-       << "Input: egg, wheat, milk → Output: egg, wheat, milk\n"
+       << "You are a precise food allergen detector.\n"
+       << "\n"
+       << "ALLERGEN DETECTION PATTERNS:\n"
+       << "• milk → cream, butter, cheese, yogurt, yoghurt, whey, casein, lactose, lait, dairy, whole milk, milk cream\n"
+       << "• egg → eggs, oeuf, oeufs, albumin, mayonnaise\n"
+       << "• peanut → peanuts, groundnut, groundnuts, arachide\n"
+       << "• tree nut → hazelnut, hazelnuts, almond, almonds, walnut, walnuts, cashew, cashews, "
+       << "pecan, pecans, pistachio, pistachios, macadamia, noisette, noisettes, mandeln, "
+       << "walnusskerne, haselnusskerne, cashewkerne, noix\n"
+       << "• wheat → flour, gluten (NOT gluten-free), oat, oats, rye\n"
+       << "• soy → soya, soja, lecithin, lecithins, soybeans, tofu, edamame\n"
+       << "• fish → salmon, tuna, cod, anchovy, poisson\n"
+       << "• shellfish → shrimp, shrimps, crab, crabs, lobster, prawn, prawns, crevette\n"
+       << "• sesame → sesame seeds, tahini, sesamum\n"
+       << "\n"
+       << "OUTPUT RULES:\n"
+       << "1. Output ONLY allergen names (no explanations)\n"
+       << "2. Format: lowercase, comma-separated, alphabetically sorted\n"
+       << "3. If no allergens found: output 'none'\n"
+       << "4. Ignore 'may contain' or 'traces of' warnings\n"
+       << "5. One allergen per category (don't list multiple nuts separately)\n"
+       << "\n"
+       << "EXAMPLES:\n"
+       << "milk, sugar → milk\n"
+       << "hazelnuts 13%, cocoa → tree nut\n"
+       << "egg, wheat flour, milk powder → egg, milk, wheat\n"
+       << "lecithin (soy), palm oil → soy\n"
+       << "sugar, water, salt → none\n"
+       << "almonds, walnuts → tree nut\n"
        << "<|im_end|>\n"
        << "<|im_start|>user\n"
-       << "Input: " << ingredients << " → Output:<|im_end|>\n"
+       << "Ingredients: " << ingredients << "\n"
+       << "Allergens:<|im_end|>\n"
        << "<|im_start|>assistant\n";
 
     return ss.str();
@@ -73,9 +96,9 @@ Java_edu_utem_ftmk_slm_MainActivity_loadModel(
     }
 
     llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = 2048;
-    ctx_params.n_batch = 512;
-    ctx_params.n_threads = 4;
+    ctx_params.n_ctx = 4096;
+    ctx_params.n_batch = 1024;
+    ctx_params.n_threads = 8;
 
     LOGI("Creating context...");
     g_ctx = llama_new_context_with_model(g_model, ctx_params);
@@ -93,7 +116,7 @@ Java_edu_utem_ftmk_slm_MainActivity_loadModel(
     return JNI_TRUE;
 }
 
-// Perform inference - WITH METRICS TRACKING
+// Perform inference - WITH IMPROVED PROMPT
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
@@ -116,16 +139,17 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
 
     if (!g_model_loaded || g_model == nullptr || g_ctx == nullptr) {
         LOGE("Model not loaded!");
-        return env->NewStringUTF("ERROR: Model not loaded");
+        return env->NewStringUTF("ERROR|Model not loaded");
     }
 
     const char* ingredients_str = env->GetStringUTFChars(ingredients, nullptr);
     LOGI("=== Predicting allergens for: %s ===", ingredients_str);
 
+    // USE IMPROVED PROMPT WITH RULES
     std::string prompt = createAllergenPrompt(ingredients_str);
     env->ReleaseStringUTFChars(ingredients, ingredients_str);
 
-    LOGI("Prompt created, length: %zu", prompt.length());
+    LOGI("Prompt created with rules, length: %zu", prompt.length());
 
     // Get vocab from model
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
@@ -138,7 +162,7 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
 
     if (n_tokens < 0) {
         LOGE("Tokenization failed");
-        return env->NewStringUTF("ERROR: Tokenization failed");
+        return env->NewStringUTF("ERROR|Tokenization failed");
     }
 
     LOGI("Tokenized: %d tokens", n_tokens);
@@ -154,7 +178,7 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
     LOGI("Decoding input tokens...");
     if (llama_decode(g_ctx, batch) != 0) {
         LOGE("Failed to decode");
-        return env->NewStringUTF("ERROR: Decoding failed");
+        return env->NewStringUTF("ERROR|Decoding failed");
     }
 
     // ================= TRACK ITPS (Input Tokens Per Second) =================
@@ -172,7 +196,7 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
 
     // Generate tokens with improved sampling
     std::string result;
-    int max_tokens = 40;  // Reduced for shorter answers
+    int max_tokens = 50;  // Allow enough for allergen list
 
     LOGI("Generating response...");
 
@@ -229,11 +253,9 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
             break;
         }
 
-        // Early stop if we see unwanted patterns
-        if (result.find("Analyze") != std::string::npos ||
-            result.find("RULES") != std::string::npos) {
-            LOGI("Unwanted pattern detected, stopping");
-            result = "none";
+        // Stop at newline (model should give one-line answer)
+        if (result.find('\n') != std::string::npos) {
+            LOGI("Newline found, stopping");
             break;
         }
 
@@ -263,7 +285,7 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
          generated_tokens, gen_ms, otps);
     // ====================================================
 
-    // AGGRESSIVE CLEANING
+    // MINIMAL CLEANING - Model should already follow rules!
 
     // Remove end markers
     size_t end_pos = result.find("<|im_end|>");
@@ -277,39 +299,22 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
         result.erase(start_pos, 13);
     }
 
-    // Remove "assistant" tag
+    // Remove "assistant" tag if present
     start_pos = result.find("assistant");
     if (start_pos != std::string::npos) {
         result.erase(start_pos, 9);
     }
 
-    // Replace newlines with spaces
-    std::replace(result.begin(), result.end(), '\n', ' ');
-    std::replace(result.begin(), result.end(), '\r', ' ');
-    std::replace(result.begin(), result.end(), '\t', ' ');
-
-    // Remove multiple spaces
-    std::string::iterator new_end = std::unique(result.begin(), result.end(),
-                                                [](char a, char b) { return a == ' ' && b == ' '; });
-    result.erase(new_end, result.end());
-
-    // Trim whitespace
+    // Trim whitespace and newlines
     result.erase(0, result.find_first_not_of(" \n\r\t"));
-    result.erase(result.find_last_not_of(" \n\r\t.,;: ") + 1);
+    result.erase(result.find_last_not_of(" \n\r\t") + 1);
 
-    // Check if result contains bad patterns
-    if (result.empty() ||
-        result.find("Analyze") != std::string::npos ||
-        result.find("identify") != std::string::npos ||
-        result.find("RULES") != std::string::npos ||
-        result.find("list:") != std::string::npos) {
+    // If empty after cleaning, return "none"
+    if (result.empty()) {
         result = "none";
     }
 
-    // Convert to lowercase
-    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
-
-    LOGI("Final response: %s", result.c_str());
+    LOGI("Model output (after minimal cleaning): %s", result.c_str());
 
     // ================= FORMAT RETURN WITH METRICS =================
     std::stringstream final_result;
@@ -317,7 +322,7 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
                  << ";ITPS=" << itps
                  << ";OTPS=" << otps
                  << ";OET_MS=" << oet_ms
-                 << "|" << result;
+                 << "|" << result;  // Return model's prediction
 
     std::string result_str = final_result.str();
     LOGI("Returning with metrics: %s", result_str.c_str());
