@@ -431,89 +431,46 @@ class MainActivity : AppCompatActivity() {
                             Log.i(TAG_METRICS, "=== METRICS FOR ${foodItem.name} ===")
                             Log.i(TAG_METRICS, "TTFT: ${ttftMs}ms | ITPS: ${itps} tok/s | OTPS: ${otps} tok/s | OET: ${oetMs}ms")
                             Log.i(TAG_METRICS, "Latency: ${endTime - startTime}ms | Memory: Java=${memAfter.javaHeap - memBefore.javaHeap}KB, Native=${memAfter.nativeHeap - memBefore.nativeHeap}KB")
-                            // =================================================
 
-                            // ALLERGEN DETECTION - Clean and Precise
-                            val ingredientsText = foodItem.ingredients.lowercase()
-                                .replace("_", " ")  // Remove underscores
-                                .replace("(", " ")  // Remove parentheses
-                                .replace(")", " ")
+// Log model output
+                            Log.i(TAG, "Model raw output: $modelOutput")
 
-                            // Special case: if ingredients are ONLY trace warnings, use allergensRaw
-                            val cleanedIngredients = if (ingredientsText.startsWith("possible traces") ||
-                                ingredientsText.startsWith("may contain traces")) {
-                                foodItem.allergensRaw.lowercase()
-                            } else {
-                                ingredientsText.split(Regex("may contain|traces of"))[0].trim()
-                            }
+                            // ================= SIMPLIFIED POST-PROCESSING =================
+                            // Model now follows prompt rules, so we just validate!
 
-                            val foundAllergens = mutableSetOf<String>()
+                            val validAllergens = setOf(
+                                "milk", "egg", "peanut", "tree nut",
+                                "wheat", "soy", "fish", "shellfish", "sesame", "none"
+                            )
 
-                            // Milk
-                            if (Regex("\\b(milk|dairy|cream|butter|cheese|yogurt|yoghurt|whey|casein|lactose|lait)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("milk")
-                            }
+                            // Light cleaning - model should already output correctly!
+                            val predicted = modelOutput.lowercase().trim()
+                                .replace("tree-nut", "tree nut")    // Just in case
+                                .replace("treenut", "tree nut")     // Just in case
+                                .split(",")                         // Split by comma
+                                .map { it.trim() }                  // Trim spaces
+                                .filter { it.isNotEmpty() }         // Remove empty
+                                .filter { it in validAllergens }    // Only valid allergens
+                                .distinct()                         // Remove duplicates
+                                .sorted()                           // Alphabetically sort
+                                .let { allergens ->
+                                    if (allergens.isEmpty() || allergens.contains("none")) {
+                                        "none"
+                                    } else {
+                                        allergens.filter { it != "none" }.joinToString(", ")
+                                    }
+                                }
 
-                            // Egg
-                            if (Regex("\\b(egg|eggs|oeuf|oeufs|albumin|mayonnaise)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("egg")
-                            }
+                            Log.i(TAG, "Model output (validated): $predicted")
 
-                            // Peanut
-                            if (Regex("\\b(peanut|peanuts|groundnut|groundnuts|arachide|arachides)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("peanut")
-                            }
+                            // Calculate accuracy
+                            val expected = foodItem.allergensMapped.lowercase()
+                                .split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                            val predictedSet = predicted.split(",").map { it.trim() }.filter { it != "none" }.toSet()
+                            val isCorrect = expected == predictedSet
 
-                            // Tree nuts - with German names
-                            if (Regex("\\b(hazelnut|hazelnuts|almond|almonds|cashew|cashews|walnut|walnuts|pecan|pecans|pistachio|pistachios|macadamia|macadamias|noisette|noisettes|mandeln|walnusskerne|haselnusskerne|cashewkerne|noix)\\b")
-                                    .containsMatchIn(cleanedIngredients) ||
-                                cleanedIngredients.contains("tree nut") ||
-                                (cleanedIngredients.contains("nuts") && !cleanedIngredients.contains("coconut"))) {
-                                foundAllergens.add("tree nut")
-                            }
-
-                            // Wheat - include singular forms
-                            if (Regex("\\b(wheat|oat|oats|flour|rye)\\b").containsMatchIn(cleanedIngredients) ||
-                                (cleanedIngredients.contains("gluten") && !cleanedIngredients.contains("gluten-free"))) {
-                                foundAllergens.add("wheat")
-                            }
-
-                            // Soy
-                            if (Regex("\\b(soy|soya|soja|soybeans|tofu|edamame)\\b")
-                                    .containsMatchIn(cleanedIngredients) ||
-                                cleanedIngredients.contains("lecithin (soy)") ||
-                                cleanedIngredients.contains("soy lecithin") ||
-                                cleanedIngredients.contains("lecithins [soya]") ||
-                                cleanedIngredients.contains("lecithins (soybeans)")) {
-                                foundAllergens.add("soy")
-                            }
-
-                            // Fish
-                            if (Regex("\\b(fish|salmon|tuna|cod|anchov|poisson)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("fish")
-                            }
-
-                            // Shellfish
-                            if (Regex("\\b(shellfish|shrimp|shrimps|crab|crabs|lobster|lobsters|prawn|prawns|crevette|crevettes)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("shellfish")
-                            }
-
-                            // Sesame
-                            if (Regex("\\b(sesame|sesame seeds|sesame-seeds|tahini|sesamum|sésame)\\b")
-                                    .containsMatchIn(cleanedIngredients)) {
-                                foundAllergens.add("sesame")
-                            }
-
-                            val predicted = if (foundAllergens.isEmpty()) {
-                                "none"
-                            } else {
-                                foundAllergens.sorted().joinToString(", ")
-                            }
+                            Log.i(TAG_METRICS, "Expected: $expected | Predicted: $predictedSet | Match: $isCorrect")
+                            // ====================================================================
 
                             PredictionResult(
                                 dataId = foodItem.id,
@@ -521,13 +478,18 @@ class MainActivity : AppCompatActivity() {
                                 ingredients = foodItem.ingredients,
                                 allergensRaw = foodItem.allergensRaw,
                                 allergensMapped = foodItem.allergensMapped,
-                                predictedAllergens = predicted,
+                                predictedAllergens = predicted,  // ← MODEL PREDICTION (validated)
                                 latencyMs = endTime - startTime,
+                                ttftMs = ttftMs,  // ← METRICS
+                                itps = itps,
+                                otps = otps,
+                                oetMs = oetMs,
                                 javaHeapKb = memAfter.javaHeap - memBefore.javaHeap,
                                 nativeHeapKb = memAfter.nativeHeap - memBefore.nativeHeap,
                                 totalPssKb = memAfter.totalPss - memBefore.totalPss,
                                 deviceModel = deviceInfo,
-                                androidVersion = androidVersion
+                                androidVersion = androidVersion,
+                                isCorrect = isCorrect  // ← ACCURACY
                             )
                         }
 
