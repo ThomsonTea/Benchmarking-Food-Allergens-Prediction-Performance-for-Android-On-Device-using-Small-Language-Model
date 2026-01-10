@@ -58,3 +58,8 @@ Thumbs.db
 # Firebase / Google Services
 # =========================
 google-services.json
+
+# =========================
+# large language model
+# =========================
+*.gguf
