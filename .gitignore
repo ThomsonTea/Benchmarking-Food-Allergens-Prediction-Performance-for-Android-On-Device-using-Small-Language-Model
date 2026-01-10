@@ -1,0 +1,60 @@
+# =========================
+# Android / Gradle
+# =========================
+*.apk
+*.ap_
+*.aab
+
+# Generated files
+bin/
+gen/
+out/
+build/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Local configuration file (SDK path, etc.)
+local.properties
+
+# =========================
+# Android Studio / IntelliJ
+# =========================
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Navigation editor temp files
+.navigation/
+
+# Capture folder
+captures/
+
+# External native build
+.externalNativeBuild/
+.cxx/
+
+# =========================
+# Kotlin
+# =========================
+*.class
+*.kotlin_module
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS-specific
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Firebase / Google Services
+# =========================
+google-services.json
