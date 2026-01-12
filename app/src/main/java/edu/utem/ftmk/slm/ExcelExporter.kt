@@ -1,307 +1,236 @@
 package edu.utem.ftmk.slm
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
 import org.apache.poi.ss.usermodel.*
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
- * Utility for exporting prediction results to Excel
+ * ExcelExporter - Export prediction results to Excel file
+ * FIXED VERSION: Removed autoSizeColumn() which crashes on Android
  */
-object ExcelExporter {
-    
-    private const val TAG = "ExcelExporter"
-    
+class ExcelExporter(private val context: Context) {
+
+    companion object {
+        private const val TAG = "ExcelExporter"
+    }
+
     /**
-     * Export results grouped by model to Excel file
-     * Returns the file path if successful, null otherwise
+     * Export all prediction results to Excel file
+     * One sheet per model + summary sheet
      */
     fun exportResults(
-        context: Context,
-        resultsByModel: Map<String, List<PredictionResult>>,
-        aggregateMetrics: Map<String, AggregateMetrics>
-    ): String? {
-        
-        try {
-            // Create workbook
+        groupedResults: Map<String, List<PredictionResult>>,
+        outputPath: String
+    ): Boolean {
+        return try {
+            Log.i(TAG, "Starting Excel export to: $outputPath")
+
             val workbook = XSSFWorkbook()
-            
-            // Create styles
-            val headerStyle = createHeaderStyle(workbook)
-            val dataStyle = createDataStyle(workbook)
-            val metricStyle = createMetricStyle(workbook)
-            
-            // Create sheet for each model
-            for ((modelName, results) in resultsByModel) {
-                createModelSheet(
-                    workbook,
-                    modelName,
-                    results,
-                    aggregateMetrics[modelName],
-                    headerStyle,
-                    dataStyle,
-                    metricStyle
-                )
+
+            // Create a sheet for each model
+            groupedResults.forEach { (modelName, results) ->
+                if (results.isNotEmpty()) {
+                    Log.i(TAG, "Creating sheet for model: $modelName (${results.size} items)")
+                    createModelSheet(workbook, modelName, results)
+                }
             }
-            
-            // Create summary sheet comparing all models
-            createSummarySheet(
-                workbook,
-                aggregateMetrics,
-                headerStyle,
-                metricStyle
-            )
-            
-            // Save to file
-            val fileName = "AllergenPrediction_${getTimestamp()}.xlsx"
-            val file = File(
-                context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS),
-                fileName
-            )
-            
+
+            // Create summary sheet
+            if (groupedResults.isNotEmpty()) {
+                Log.i(TAG, "Creating summary sheet")
+                createSummarySheet(workbook, groupedResults)
+            }
+
+            // Write to file
+            val file = File(outputPath)
+            file.parentFile?.mkdirs()
+
             FileOutputStream(file).use { outputStream ->
                 workbook.write(outputStream)
             }
-            
+
             workbook.close()
-            
-            Log.i(TAG, "Excel file saved: ${file.absolutePath}")
-            return file.absolutePath
-            
+
+            Log.i(TAG, "✓ Excel export completed successfully")
+            true
+
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to export Excel", e)
-            return null
+            Log.e(TAG, "✗ Excel export failed", e)
+            false
         }
     }
-    
+
     /**
-     * Create sheet for a single model
+     * Create a sheet for one model's results
      */
     private fun createModelSheet(
         workbook: Workbook,
         modelName: String,
-        results: List<PredictionResult>,
-        metrics: AggregateMetrics?,
-        headerStyle: CellStyle,
-        dataStyle: CellStyle,
-        metricStyle: CellStyle
+        results: List<PredictionResult>
     ) {
-        
-        // Create sheet
-        val sheet = workbook.createSheet(sanitizeSheetName(modelName))
-        
-        var rowNum = 0
-        
-        // Add model info header
-        val infoRow = sheet.createRow(rowNum++)
-        createCell(infoRow, 0, "Model: $modelName", headerStyle)
-        rowNum++
-        
-        // Add aggregate metrics
-        if (metrics != null) {
-            createMetricsSection(sheet, metrics, rowNum, metricStyle)
-            rowNum += 20  // Space for metrics
-        }
-        
-        // Add data headers
-        val headerRow = sheet.createRow(rowNum++)
+        // Sanitize sheet name (max 31 chars, no special chars)
+        val sheetName = modelName
+            .replace(" ", "_")
+            .replace(".", "_")
+            .take(31)
+
+        val sheet = workbook.createSheet(sheetName)
+
+        // Create header row
+        val headerRow = sheet.createRow(0)
         val headers = PredictionResult.getExcelHeaders()
-        headers.forEachIndexed { index, header ->
-            createCell(headerRow, index, header, headerStyle)
+
+        val headerStyle = workbook.createCellStyle().apply {
+            fillForegroundColor = IndexedColors.LIGHT_BLUE.index
+            fillPattern = FillPatternType.SOLID_FOREGROUND
+            val font = workbook.createFont()
+            font.bold = true
+            setFont(font)
         }
-        
+
+        headers.forEachIndexed { index, header ->
+            val cell = headerRow.createCell(index)
+            cell.setCellValue(header)
+            cell.cellStyle = headerStyle
+        }
+
         // Add data rows
-        for (result in results) {
-            val dataRow = sheet.createRow(rowNum++)
-            val rowData = result.toExcelRow()
-            rowData.forEachIndexed { index, value ->
-                createCell(dataRow, index, value.toString(), dataStyle)
+        results.forEachIndexed { rowIndex, result ->
+            val row = sheet.createRow(rowIndex + 1)
+            val data = result.toExcelRow()
+
+            data.forEachIndexed { colIndex, value ->
+                val cell = row.createCell(colIndex)
+                when (value) {
+                    is Number -> cell.setCellValue(value.toDouble())
+                    is Boolean -> cell.setCellValue(value)
+                    else -> cell.setCellValue(value.toString())
+                }
             }
         }
-        
-        // Auto-size columns
+
+        // ========== FIXED: Use setColumnWidth instead of autoSizeColumn ==========
+        // Android doesn't support autoSizeColumn() because it uses AWT classes
         for (i in 0 until headers.size) {
-            sheet.autoSizeColumn(i)
+            when (i) {
+                0 -> sheet.setColumnWidth(i, 4000)   // Name
+                1 -> sheet.setColumnWidth(i, 8000)   // Ingredients
+                2 -> sheet.setColumnWidth(i, 4000)   // Ground Truth
+                3 -> sheet.setColumnWidth(i, 4000)   // Predicted
+                4, 5, 6, 7 -> sheet.setColumnWidth(i, 3000)  // TP, FP, FN, TN
+                8, 9, 10 -> sheet.setColumnWidth(i, 3500)    // Precision, Recall, F1
+                11 -> sheet.setColumnWidth(i, 2500)  // Exact Match
+                12 -> sheet.setColumnWidth(i, 3000)  // Hamming Loss
+                13 -> sheet.setColumnWidth(i, 3000)  // FNR
+                14 -> sheet.setColumnWidth(i, 3000)  // Hallucination
+                15 -> sheet.setColumnWidth(i, 5000)  // Hallucinated Allergens
+                16 -> sheet.setColumnWidth(i, 3000)  // Over-prediction
+                17 -> sheet.setColumnWidth(i, 5000)  // Over-predicted Allergens
+                18 -> sheet.setColumnWidth(i, 3000)  // Latency
+                19 -> sheet.setColumnWidth(i, 3000)  // TTFT
+                20 -> sheet.setColumnWidth(i, 3000)  // ITPS
+                21 -> sheet.setColumnWidth(i, 3000)  // OTPS
+                22 -> sheet.setColumnWidth(i, 3000)  // Memory
+                else -> sheet.setColumnWidth(i, 3000)  // Default
+            }
         }
+        // =========================================================================
+
+        Log.i(TAG, "Created sheet: $sheetName with ${results.size} rows")
     }
-    
-    /**
-     * Create metrics section in sheet
-     */
-    private fun createMetricsSection(
-        sheet: Sheet,
-        metrics: AggregateMetrics,
-        startRow: Int,
-        style: CellStyle
-    ) {
-        var row = startRow
-        
-        // Sample count
-        createMetricRow(sheet, row++, "Sample Count", metrics.sampleCount.toString(), style)
-        row++
-        
-        // Prediction Quality Metrics
-        createMetricRow(sheet, row++, "=== PREDICTION QUALITY ===", "", style)
-        createMetricRow(sheet, row++, "Micro Precision", String.format("%.4f", metrics.microPrecision), style)
-        createMetricRow(sheet, row++, "Micro Recall", String.format("%.4f", metrics.microRecall), style)
-        createMetricRow(sheet, row++, "Micro F1", String.format("%.4f", metrics.microF1), style)
-        createMetricRow(sheet, row++, "Macro Precision", String.format("%.4f", metrics.macroPrecision), style)
-        createMetricRow(sheet, row++, "Macro Recall", String.format("%.4f", metrics.macroRecall), style)
-        createMetricRow(sheet, row++, "Macro F1", String.format("%.4f", metrics.macroF1), style)
-        createMetricRow(sheet, row++, "Exact Match Ratio", String.format("%.2f%%", metrics.exactMatchRatio * 100), style)
-        createMetricRow(sheet, row++, "Hamming Loss", String.format("%.4f", metrics.avgHammingLoss), style)
-        createMetricRow(sheet, row++, "False Negative Rate", String.format("%.4f", metrics.avgFnr), style)
-        row++
-        
-        // Safety Metrics
-        createMetricRow(sheet, row++, "=== SAFETY METRICS ===", "", style)
-        createMetricRow(sheet, row++, "Hallucination Rate", String.format("%.2f%%", metrics.hallucinationRate * 100), style)
-        createMetricRow(sheet, row++, "Over-Prediction Rate", String.format("%.2f%%", metrics.overPredictionRate * 100), style)
-        createMetricRow(sheet, row++, "Abstention Accuracy", String.format("%.2f%%", metrics.abstentionAccuracy * 100), style)
-        row++
-        
-        // Efficiency Metrics
-        createMetricRow(sheet, row++, "=== EFFICIENCY METRICS ===", "", style)
-        createMetricRow(sheet, row++, "Avg Latency (ms)", String.format("%.0f", metrics.avgLatency), style)
-        createMetricRow(sheet, row++, "Avg TTFT (ms)", String.format("%.0f", metrics.avgTtft), style)
-        createMetricRow(sheet, row++, "Avg ITPS (tok/s)", String.format("%.2f", metrics.avgItps), style)
-        createMetricRow(sheet, row++, "Avg OTPS (tok/s)", String.format("%.2f", metrics.avgOtps), style)
-        createMetricRow(sheet, row++, "Avg OET (ms)", String.format("%.0f", metrics.avgOet), style)
-        createMetricRow(sheet, row++, "Avg Java Heap (KB)", String.format("%.0f", metrics.avgJavaHeap), style)
-        createMetricRow(sheet, row++, "Avg Native Heap (KB)", String.format("%.0f", metrics.avgNativeHeap), style)
-        createMetricRow(sheet, row++, "Avg Total PSS (KB)", String.format("%.0f", metrics.avgTotalPss), style)
-    }
-    
+
     /**
      * Create summary comparison sheet
      */
     private fun createSummarySheet(
         workbook: Workbook,
-        aggregateMetrics: Map<String, AggregateMetrics>,
-        headerStyle: CellStyle,
-        metricStyle: CellStyle
+        groupedResults: Map<String, List<PredictionResult>>
     ) {
-        
         val sheet = workbook.createSheet("Summary")
-        var rowNum = 0
-        
-        // Title
-        val titleRow = sheet.createRow(rowNum++)
-        createCell(titleRow, 0, "Model Comparison Summary", headerStyle)
-        rowNum++
-        
+
         // Headers
-        val headerRow = sheet.createRow(rowNum++)
-        createCell(headerRow, 0, "Metric", headerStyle)
-        var col = 1
-        for (modelName in aggregateMetrics.keys) {
-            createCell(headerRow, col++, modelName, headerStyle)
-        }
-        
-        // Add each metric as a row
-        val metricsList = listOf(
-            "Sample Count" to { m: AggregateMetrics -> m.sampleCount.toString() },
-            "Micro Precision" to { m: AggregateMetrics -> String.format("%.4f", m.microPrecision) },
-            "Micro Recall" to { m: AggregateMetrics -> String.format("%.4f", m.microRecall) },
-            "Micro F1" to { m: AggregateMetrics -> String.format("%.4f", m.microF1) },
-            "Exact Match Ratio" to { m: AggregateMetrics -> String.format("%.2f%%", m.exactMatchRatio * 100) },
-            "Hallucination Rate" to { m: AggregateMetrics -> String.format("%.2f%%", m.hallucinationRate * 100) },
-            "Avg Latency (ms)" to { m: AggregateMetrics -> String.format("%.0f", m.avgLatency) },
-            "Avg TTFT (ms)" to { m: AggregateMetrics -> String.format("%.0f", m.avgTtft) }
+        val headerRow = sheet.createRow(0)
+        val headers = listOf(
+            "Model",
+            "Items",
+            "Avg Precision",
+            "Avg Recall",
+            "Avg F1",
+            "Exact Match %",
+            "Avg Hamming Loss",
+            "Avg FNR",
+            "Hallucination Rate %",
+            "Over-prediction Rate %",
+            "Avg Latency (ms)",
+            "Avg TTFT (ms)",
+            "Avg ITPS",
+            "Avg OTPS",
+            "Avg Memory (MB)"
         )
-        
-        for ((metricName, extractor) in metricsList) {
-            val dataRow = sheet.createRow(rowNum++)
-            createCell(dataRow, 0, metricName, metricStyle)
-            col = 1
-            for ((_, metrics) in aggregateMetrics) {
-                createCell(dataRow, col++, extractor(metrics), metricStyle)
+
+        val headerStyle = workbook.createCellStyle().apply {
+            fillForegroundColor = IndexedColors.LIGHT_GREEN.index
+            fillPattern = FillPatternType.SOLID_FOREGROUND
+            val font = workbook.createFont()
+            font.bold = true
+            setFont(font)
+        }
+
+        headers.forEachIndexed { index, header ->
+            val cell = headerRow.createCell(index)
+            cell.setCellValue(header)
+            cell.cellStyle = headerStyle
+        }
+
+        // Calculate aggregates for each model
+        groupedResults.entries.forEachIndexed { rowIndex, (modelName, results) ->
+            if (results.isEmpty()) return@forEachIndexed
+
+            val row = sheet.createRow(rowIndex + 1)
+
+            val avgPrecision = results.map { it.precision }.average()
+            val avgRecall = results.map { it.recall }.average()
+            val avgF1 = results.map { it.f1Score }.average()
+            val exactMatchRate = results.count { it.isExactMatch }.toDouble() / results.size * 100
+            val avgHammingLoss = results.map { it.hammingLoss }.average()
+            val avgFNR = results.map { it.falseNegativeRate }.average()
+            val hallucinationRate = results.count { it.hasHallucination }.toDouble() / results.size * 100
+            val overPredictionRate = results.count { it.hasOverPrediction }.toDouble() / results.size * 100
+            val avgLatency = results.map { it.latencyMs }.average()
+            val avgTTFT = results.mapNotNull { if (it.ttftMs > 0) it.ttftMs else null }.average()
+            val avgITPS = results.mapNotNull { if (it.itps > 0) it.itps else null }.average()
+            val avgOTPS = results.mapNotNull { if (it.otps > 0) it.otps else null }.average()
+            val avgMemory = results.map { it.totalPssKb / 1024.0 }.average()
+
+            row.createCell(0).setCellValue(modelName)
+            row.createCell(1).setCellValue(results.size.toDouble())
+            row.createCell(2).setCellValue(avgPrecision)
+            row.createCell(3).setCellValue(avgRecall)
+            row.createCell(4).setCellValue(avgF1)
+            row.createCell(5).setCellValue(exactMatchRate)
+            row.createCell(6).setCellValue(avgHammingLoss)
+            row.createCell(7).setCellValue(avgFNR)
+            row.createCell(8).setCellValue(hallucinationRate)
+            row.createCell(9).setCellValue(overPredictionRate)
+            row.createCell(10).setCellValue(avgLatency)
+            row.createCell(11).setCellValue(avgTTFT)
+            row.createCell(12).setCellValue(avgITPS)
+            row.createCell(13).setCellValue(avgOTPS)
+            row.createCell(14).setCellValue(avgMemory)
+        }
+
+        // Set column widths for summary sheet
+        for (i in 0 until headers.size) {
+            when (i) {
+                0 -> sheet.setColumnWidth(i, 5000)   // Model name
+                1 -> sheet.setColumnWidth(i, 2500)   // Items
+                else -> sheet.setColumnWidth(i, 4000) // Metrics
             }
         }
-        
-        // Auto-size columns
-        for (i in 0..aggregateMetrics.size) {
-            sheet.autoSizeColumn(i)
-        }
-    }
-    
-    /**
-     * Helper to create metric row
-     */
-    private fun createMetricRow(
-        sheet: Sheet,
-        rowNum: Int,
-        label: String,
-        value: String,
-        style: CellStyle
-    ) {
-        val row = sheet.createRow(rowNum)
-        createCell(row, 0, label, style)
-        createCell(row, 1, value, style)
-    }
-    
-    /**
-     * Helper to create cell with style
-     */
-    private fun createCell(row: Row, column: Int, value: String, style: CellStyle) {
-        val cell = row.createCell(column)
-        cell.setCellValue(value)
-        cell.cellStyle = style
-    }
-    
-    /**
-     * Create header cell style
-     */
-    private fun createHeaderStyle(workbook: Workbook): CellStyle {
-        val style = workbook.createCellStyle()
-        val font = workbook.createFont()
-        font.bold = true
-        font.fontHeightInPoints = 12
-        style.setFont(font)
-        style.fillForegroundColor = IndexedColors.GREY_25_PERCENT.index
-        style.fillPattern = FillPatternType.SOLID_FOREGROUND
-        return style
-    }
-    
-    /**
-     * Create data cell style
-     */
-    private fun createDataStyle(workbook: Workbook): CellStyle {
-        val style = workbook.createCellStyle()
-        style.wrapText = false
-        return style
-    }
-    
-    /**
-     * Create metric cell style
-     */
-    private fun createMetricStyle(workbook: Workbook): CellStyle {
-        val style = workbook.createCellStyle()
-        val font = workbook.createFont()
-        font.bold = true
-        style.setFont(font)
-        return style
-    }
-    
-    /**
-     * Sanitize sheet name (Excel has restrictions)
-     */
-    private fun sanitizeSheetName(name: String): String {
-        return name
-            .replace(Regex("[:\\\\/*?\\[\\]]"), "")
-            .take(31)  // Excel limit
-    }
-    
-    /**
-     * Get timestamp for filename
-     */
-    private fun getTimestamp(): String {
-        val format = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        return format.format(Date())
+
+        Log.i(TAG, "Created summary sheet with ${groupedResults.size} models")
     }
 }

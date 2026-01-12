@@ -14,6 +14,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import android.os.Environment
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Dashboard Activity showing aggregated metrics for all models
@@ -23,6 +27,7 @@ class DashboardActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "Dashboard"
     }
+
     
     private lateinit var metricsContainer: LinearLayout
     private lateinit var exportButton: Button
@@ -323,40 +328,34 @@ class DashboardActivity : AppCompatActivity() {
     private fun exportToExcel() {
         lifecycleScope.launch {
             try {
-                exportButton.isEnabled = false
-                
-                val filePath = withContext(Dispatchers.IO) {
-                    ExcelExporter.exportResults(
-                        this@DashboardActivity,
-                        resultsByModel,
-                        aggregateMetrics
-                    )
+                Toast.makeText(this@DashboardActivity, "Exporting to Excel...", Toast.LENGTH_SHORT).show()
+
+                if (resultsByModel.isEmpty()) {
+                    Toast.makeText(this@DashboardActivity, "No data to export. Load metrics first!", Toast.LENGTH_LONG).show()
+                    return@launch
                 }
-                
-                if (filePath != null) {
-                    Toast.makeText(
-                        this@DashboardActivity,
-                        "Exported to: $filePath",
-                        Toast.LENGTH_LONG
-                    ).show()
+
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val filename = "allergen_predictions_$timestamp.xlsx"
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val outputPath = File(downloadsDir, filename).absolutePath
+
+                Log.i(TAG, "Exporting to: $outputPath")
+
+                val success = withContext(Dispatchers.IO) {
+                    val exporter = ExcelExporter(this@DashboardActivity)
+                    exporter.exportResults(resultsByModel, outputPath)  // ← FIXED: Use resultsByModel
+                }
+
+                if (success) {
+                    Toast.makeText(this@DashboardActivity, "✓ Excel exported to Downloads/$filename", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(
-                        this@DashboardActivity,
-                        "Export failed",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this@DashboardActivity, "✗ Excel export failed", Toast.LENGTH_LONG).show()
                 }
-                
-                exportButton.isEnabled = true
-                
+
             } catch (e: Exception) {
-                Log.e(TAG, "Export failed", e)
-                Toast.makeText(
-                    this@DashboardActivity,
-                    "Export error: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-                exportButton.isEnabled = true
+                Log.e(TAG, "Excel export error", e)
+                Toast.makeText(this@DashboardActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
