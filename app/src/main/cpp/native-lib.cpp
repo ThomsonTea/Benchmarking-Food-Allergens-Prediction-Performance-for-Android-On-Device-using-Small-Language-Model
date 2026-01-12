@@ -84,8 +84,11 @@ Java_edu_utem_ftmk_slm_MainActivity_loadModel(
 
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = 0;
+<<<<<<< HEAD
     model_params.use_mmap = true;        // ⚡ Faster loading
     model_params.use_mlock = false;      // ⚡ Less memory
+=======
+>>>>>>> origin/main
 
     LOGI("Loading model from: %s", model_path_str);
     g_model = llama_load_model_from_file(model_path_str, model_params);

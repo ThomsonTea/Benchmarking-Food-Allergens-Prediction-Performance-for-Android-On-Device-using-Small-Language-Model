@@ -84,6 +84,7 @@
                         android:text="Load Model"
                         android:textAllCaps="false" />
 
+<<<<<<< HEAD
                     <Button
                         android:id="@+id/dashboardButton"
                         android:layout_width="match_parent"
@@ -91,6 +92,8 @@
                         android:text="View Dashboard"
                         android:layout_margin="8dp"/>
 
+=======
+>>>>>>> origin/main
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
@@ -125,11 +128,14 @@
                         android:text="Choose a set of 10 items to test"
                         android:textSize="12sp"
                         android:textColor="#999999" />
+<<<<<<< HEAD
                     <Spinner
                         android:id="@+id/modelSpinner"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_margin="8dp"/>
+=======
+>>>>>>> origin/main
 
                     <Spinner
                         android:id="@+id/datasetSpinner"

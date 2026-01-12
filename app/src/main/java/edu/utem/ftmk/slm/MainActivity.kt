@@ -23,6 +23,7 @@ import org.apache.poi.ss.usermodel.CellType
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.File
 import java.io.FileOutputStream
+<<<<<<< HEAD
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.Manifest
@@ -32,6 +33,8 @@ import androidx.core.content.ContextCompat
 import android.net.Uri
 import android.provider.Settings
 
+=======
+>>>>>>> origin/main
 
 class MainActivity : AppCompatActivity() {
 
@@ -77,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultsRecyclerView: RecyclerView
     private lateinit var resultsAdapter: ResultsAdapter
 
+<<<<<<< HEAD
     private lateinit var modelSpinner: Spinner
 
     private var currentModelName: String = "Qwen 2.5 1.5B"
@@ -85,6 +89,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dashboardButton: Button  // ← ADD THIS
 
 
+=======
+>>>>>>> origin/main
     // Firebase
     private val firestore = FirebaseFirestore.getInstance()
 
@@ -98,8 +104,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+<<<<<<< HEAD
         requestStoragePermission()
 
+=======
+>>>>>>> origin/main
         Log.i(TAG, "=== MainActivity onCreate ===")
 
         initializeViews()
@@ -110,15 +119,19 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             loadFoodDataset()
         }
+<<<<<<< HEAD
         // Setup model spinner
         val modelNames = ModelRegistry.getDisplayNames()
         val modelAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modelNames)
         modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         modelSpinner.adapter = modelAdapter
+=======
+>>>>>>> origin/main
 
         setupClickListeners()
     }
 
+<<<<<<< HEAD
     /**
      * Request storage permission (Android 11+ compatible)
      */
@@ -207,6 +220,10 @@ class MainActivity : AppCompatActivity() {
     private fun initializeViews() {
         modelStatusText = findViewById(R.id.modelStatusText)
         modelSpinner = findViewById(R.id.modelSpinner)
+=======
+    private fun initializeViews() {
+        modelStatusText = findViewById(R.id.modelStatusText)
+>>>>>>> origin/main
         modelLoadingProgress = findViewById(R.id.modelLoadingProgress)
         loadModelButton = findViewById(R.id.loadModelButton)
         datasetSpinner = findViewById(R.id.datasetSpinner)
@@ -217,7 +234,10 @@ class MainActivity : AppCompatActivity() {
         predictionProgress = findViewById(R.id.predictionProgress)
         resultsTitle = findViewById(R.id.resultsTitle)
         resultsRecyclerView = findViewById(R.id.resultsRecyclerView)
+<<<<<<< HEAD
         dashboardButton = findViewById(R.id.dashboardButton)
+=======
+>>>>>>> origin/main
     }
 
     private fun setupRecyclerView() {
@@ -247,10 +267,13 @@ class MainActivity : AppCompatActivity() {
                 loadAIModel()
             }
         }
+<<<<<<< HEAD
         dashboardButton.setOnClickListener {
             val intent = Intent(this, DashboardActivity::class.java)
             startActivity(intent)
         }
+=======
+>>>>>>> origin/main
 
         predictButton.setOnClickListener {
             if (!isPredicting) {
@@ -262,6 +285,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Prediction already in progress", Toast.LENGTH_SHORT).show()
             }
         }
+<<<<<<< HEAD
         modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val selectedModel = ModelRegistry.MODELS[position]
@@ -283,6 +307,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+=======
+>>>>>>> origin/main
     }
 
     /**
@@ -460,6 +486,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+<<<<<<< HEAD
      * Load model from external storage (Documents/SLM_Models/)
      */
     private fun copyModelFromAssets(): File? {
@@ -518,6 +545,36 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+=======
+     * Copy model from assets to internal storage
+     */
+    private fun copyModelFromAssets(): File? {
+        try {
+            val outputFile = File(filesDir, MODEL_NAME)
+
+            if (outputFile.exists()) {
+                Log.i(TAG, "Model already exists")
+                return outputFile
+            }
+
+            Log.i(TAG, "Copying model...")
+
+            assets.open(MODEL_NAME).use { input ->
+                FileOutputStream(outputFile).use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                    }
+                }
+            }
+
+            return outputFile
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy model", e)
+>>>>>>> origin/main
             return null
         }
     }
@@ -569,6 +626,10 @@ class MainActivity : AppCompatActivity() {
                             val memAfter = captureMemorySnapshot()
 
                             // ================= PARSE METRICS =================
+<<<<<<< HEAD
+=======
+                            // Expected format: TTFT_MS=<value>;ITPS=<value>;OTPS=<value>;OET_MS=<value>|<output>
+>>>>>>> origin/main
                             val parts = rawResult.split("|", limit = 2)
                             val metaString = if (parts.isNotEmpty()) parts[0] else ""
                             val modelOutput = if (parts.size > 1) parts[1] else rawResult
@@ -592,6 +653,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
 
+<<<<<<< HEAD
                             Log.i(TAG_METRICS, "=== METRICS FOR ${foodItem.name} ===")
                             Log.i(TAG_METRICS, "TTFT: ${ttftMs}ms | ITPS: ${itps} tok/s | OTPS: ${otps} tok/s | OET: ${oetMs}ms")
                             Log.i(TAG_METRICS, "Latency: ${endTime - startTime}ms")
@@ -600,11 +662,25 @@ class MainActivity : AppCompatActivity() {
                             Log.i(TAG, "Model raw output: $modelOutput")
 
                             // ================= USE MODEL OUTPUT (with validation) =================
+=======
+                            // Log metrics
+                            Log.i(TAG_METRICS, "=== METRICS FOR ${foodItem.name} ===")
+                            Log.i(TAG_METRICS, "TTFT: ${ttftMs}ms | ITPS: ${itps} tok/s | OTPS: ${otps} tok/s | OET: ${oetMs}ms")
+                            Log.i(TAG_METRICS, "Latency: ${endTime - startTime}ms | Memory: Java=${memAfter.javaHeap - memBefore.javaHeap}KB, Native=${memAfter.nativeHeap - memBefore.nativeHeap}KB")
+
+// Log model output
+                            Log.i(TAG, "Model raw output: $modelOutput")
+
+                            // ================= SIMPLIFIED POST-PROCESSING =================
+                            // Model now follows prompt rules, so we just validate!
+
+>>>>>>> origin/main
                             val validAllergens = setOf(
                                 "milk", "egg", "peanut", "tree nut",
                                 "wheat", "soy", "fish", "shellfish", "sesame", "none"
                             )
 
+<<<<<<< HEAD
                             // Clean model output
                             val predicted = modelOutput.lowercase().trim()
                                 .replace("tree-nut", "tree nut")
@@ -615,6 +691,18 @@ class MainActivity : AppCompatActivity() {
                                 .filter { it in validAllergens }
                                 .distinct()
                                 .sorted()
+=======
+                            // Light cleaning - model should already output correctly!
+                            val predicted = modelOutput.lowercase().trim()
+                                .replace("tree-nut", "tree nut")    // Just in case
+                                .replace("treenut", "tree nut")     // Just in case
+                                .split(",")                         // Split by comma
+                                .map { it.trim() }                  // Trim spaces
+                                .filter { it.isNotEmpty() }         // Remove empty
+                                .filter { it in validAllergens }    // Only valid allergens
+                                .distinct()                         // Remove duplicates
+                                .sorted()                           // Alphabetically sort
+>>>>>>> origin/main
                                 .let { allergens ->
                                     if (allergens.isEmpty() || allergens.contains("none")) {
                                         "none"
@@ -625,6 +713,7 @@ class MainActivity : AppCompatActivity() {
 
                             Log.i(TAG, "Model output (validated): $predicted")
 
+<<<<<<< HEAD
                             // ================= CALCULATE ALL METRICS =================
                             val metrics = MetricsCalculator.calculateMetrics(
                                 groundTruth = foodItem.allergensMapped,
@@ -641,11 +730,24 @@ class MainActivity : AppCompatActivity() {
 
                             PredictionResult(
                                 // Basic info
+=======
+                            // Calculate accuracy
+                            val expected = foodItem.allergensMapped.lowercase()
+                                .split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                            val predictedSet = predicted.split(",").map { it.trim() }.filter { it != "none" }.toSet()
+                            val isCorrect = expected == predictedSet
+
+                            Log.i(TAG_METRICS, "Expected: $expected | Predicted: $predictedSet | Match: $isCorrect")
+                            // ====================================================================
+
+                            PredictionResult(
+>>>>>>> origin/main
                                 dataId = foodItem.id,
                                 name = foodItem.name,
                                 ingredients = foodItem.ingredients,
                                 allergensRaw = foodItem.allergensRaw,
                                 allergensMapped = foodItem.allergensMapped,
+<<<<<<< HEAD
                                 predictedAllergens = predicted,
                                 modelName = currentModelName,  // ← Add current model name
 
@@ -685,6 +787,20 @@ class MainActivity : AppCompatActivity() {
                                 // Device info
                                 deviceModel = deviceInfo,
                                 androidVersion = androidVersion
+=======
+                                predictedAllergens = predicted,  // ← MODEL PREDICTION (validated)
+                                latencyMs = endTime - startTime,
+                                ttftMs = ttftMs,  // ← METRICS
+                                itps = itps,
+                                otps = otps,
+                                oetMs = oetMs,
+                                javaHeapKb = memAfter.javaHeap - memBefore.javaHeap,
+                                nativeHeapKb = memAfter.nativeHeap - memBefore.nativeHeap,
+                                totalPssKb = memAfter.totalPss - memBefore.totalPss,
+                                deviceModel = deviceInfo,
+                                androidVersion = androidVersion,
+                                isCorrect = isCorrect  // ← ACCURACY
+>>>>>>> origin/main
                             )
                         }
 
