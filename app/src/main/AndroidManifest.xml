@@ -4,13 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-<<<<<<< HEAD
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage"/>
-=======
->>>>>>> origin/main
 
     <application
         android:allowBackup="true"
@@ -32,14 +29,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-<<<<<<< HEAD
             <activity
                 android:name=".DashboardActivity"
                 android:label="Performance Dashboard"
                 android:parentActivityName=".MainActivity"/>
 
-=======
->>>>>>> origin/main
     </application>
 
 </manifest>
