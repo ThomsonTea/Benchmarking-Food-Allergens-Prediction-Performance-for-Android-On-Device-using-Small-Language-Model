@@ -4,15 +4,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ServerTimestamp
 
-<<<<<<< HEAD
 /**
  * Complete prediction result with all required metrics for benchmarking
  */
 data class PredictionResult(
     // Basic info
-=======
-data class PredictionResult(
->>>>>>> origin/main
     val dataId: String = "",
     val name: String = "",
     val ingredients: String = "",
@@ -20,7 +16,6 @@ data class PredictionResult(
     val allergensMapped: String = "",
     val predictedAllergens: String = "",
 
-<<<<<<< HEAD
     // Model info
     val modelName: String = "",  // Which model was used
 
@@ -48,18 +43,12 @@ data class PredictionResult(
     val isAbstentionCorrect: Boolean = false,  // True if correctly predicted "none"
 
     // === ON-DEVICE EFFICIENCY METRICS ===
-=======
-    // Timing metrics - THESE ARE CRITICAL!
->>>>>>> origin/main
     val latencyMs: Long = 0,
     val ttftMs: Long = -1,      // Time To First Token
     val itps: Long = -1,        // Input Tokens Per Second
     val otps: Long = -1,        // Output Tokens Per Second
     val oetMs: Long = -1,       // Output Evaluation Time
-<<<<<<< HEAD
     val totalTimeMs: Long = 0,  // Total time (same as latency)
-=======
->>>>>>> origin/main
 
     // Memory metrics
     val javaHeapKb: Long = 0,
@@ -70,12 +59,6 @@ data class PredictionResult(
     val deviceModel: String = "",
     val androidVersion: String = "",
 
-<<<<<<< HEAD
-=======
-    // Accuracy tracking
-    val isCorrect: Boolean = false,
-
->>>>>>> origin/main
     @ServerTimestamp
     val timestamp: Timestamp? = null
 ) {
@@ -84,17 +67,13 @@ data class PredictionResult(
      */
     fun toMap(): Map<String, Any?> {
         return hashMapOf(
-<<<<<<< HEAD
             // Basic info
-=======
->>>>>>> origin/main
             "dataId" to dataId,
             "name" to name,
             "ingredients" to ingredients,
             "allergensRaw" to allergensRaw,
             "allergensMapped" to allergensMapped,
             "predictedAllergens" to predictedAllergens,
-<<<<<<< HEAD
             "modelName" to modelName,
 
             // Prediction quality metrics
@@ -118,19 +97,12 @@ data class PredictionResult(
             "isAbstentionCorrect" to isAbstentionCorrect,
 
             // Efficiency metrics
-=======
-
-            // Timing metrics - MAKE SURE THESE ARE INCLUDED!
->>>>>>> origin/main
             "latencyMs" to latencyMs,
             "ttftMs" to ttftMs,
             "itps" to itps,
             "otps" to otps,
             "oetMs" to oetMs,
-<<<<<<< HEAD
             "totalTimeMs" to totalTimeMs,
-=======
->>>>>>> origin/main
 
             // Memory metrics
             "javaHeapKb" to javaHeapKb,
@@ -141,7 +113,6 @@ data class PredictionResult(
             "deviceModel" to deviceModel,
             "androidVersion" to androidVersion,
 
-<<<<<<< HEAD
             // Timestamp - use FieldValue for server-side timestamp
             "timestamp" to FieldValue.serverTimestamp()
         )
@@ -219,12 +190,3 @@ data class PredictionResult(
         }
     }
 }
-=======
-            // Accuracy
-            "isCorrect" to isCorrect,
-
-            "timestamp" to FieldValue.serverTimestamp()
-        )
-    }
-}
->>>>>>> origin/main
