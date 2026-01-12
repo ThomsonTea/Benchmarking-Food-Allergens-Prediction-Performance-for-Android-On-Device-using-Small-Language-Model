@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "503778140116",
+    "project_id": "food-allergen-slm",
+    "storage_bucket": "food-allergen-slm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503778140116:android:0b17c8d00370a679ccc041",
+        "android_client_info": {
+          "package_name": "edu.utem.ftmk.slm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwcwzGkGyY4QQ_3F5LKeV1p4KU8WbMtw0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
