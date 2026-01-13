@@ -69,7 +69,7 @@ object ModelRegistry {
         ModelConfig(
             id = "gemma-2b",
             displayName = "Gemma 2B",
-            fileName = "Gemma-2B-instruct-Q4_K_M.gguf",
+            fileName = "Vikhr-Gemma-2B-instruct-Q4_K_M.gguf",
             parameters = "2B",
             quantization = "Q4_K_M",
             sizeGB = 1.4
