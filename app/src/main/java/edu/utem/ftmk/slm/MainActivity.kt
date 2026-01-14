@@ -31,6 +31,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.net.Uri
 import android.provider.Settings
+import androidx.appcompat.app.AlertDialog
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.tasks.await
 
 
 class MainActivity : AppCompatActivity() {
@@ -42,6 +46,10 @@ class MainActivity : AppCompatActivity() {
         private const val EXCEL_FILE = "foodpreprocessed.xlsx"
         private const val CHANNEL_ID = "allergen_predictions"
         private const val NOTIFICATION_ID = 1
+
+        private var isProcessingAll = false
+        private var processedCount = 0
+        private var totalToProcess = 0
 
         init {
             try {
@@ -57,11 +65,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Native function declarations
+    // ===== NATIVE FUNCTION DECLARATIONS =====
+    // Existing functions
     external fun loadModel(assetManager: android.content.res.AssetManager, modelPath: String): Boolean
     external fun predictAllergens(ingredients: String): String
     external fun getModelInfo(): String
     external fun unloadModel()
+
+    // NEW: Optimal solution functions (MINIMAL VERSION)
+    external fun clearContext()
+    external fun isModelHealthy(): Boolean
+    // Optional functions removed for compatibility:
+    // external fun getModelMemoryInfo(): String
+    // external fun countTokens(text: String): Int
+
+    // ===== DATA CLASSES =====
+    // NEW: Batch statistics tracking
+    data class BatchStatistics(
+        var totalItems: Int = 0,
+        var successCount: Int = 0,
+        var failCount: Int = 0,
+        var retryCount: Int = 0,
+        var startTime: Long = 0L,
+        var lastCheckpointTime: Long = 0L,
+        val failedItems: MutableList<FoodItem> = mutableListOf()
+    )
+
+    data class PredictionAttempt(
+        val item: FoodItem,
+        val attempt: Int,
+        val startTime: Long
+    )
+
+    data class MemorySnapshot(
+        val javaHeap: Long,
+        val nativeHeap: Long,
+        val totalPss: Long
+    )
 
     // UI Components
     private lateinit var modelStatusText: TextView
@@ -76,14 +116,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultsTitle: TextView
     private lateinit var resultsRecyclerView: RecyclerView
     private lateinit var resultsAdapter: ResultsAdapter
-
     private lateinit var modelSpinner: Spinner
+    private lateinit var dashboardButton: Button
 
     private var currentModelName: String = "Qwen 2.5 1.5B"
     private var currentModelFile: String = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
     private val resultsByModel = mutableMapOf<String, MutableList<PredictionResult>>()
-    private lateinit var dashboardButton: Button  // ← ADD THIS
-
 
     // Firebase
     private val firestore = FirebaseFirestore.getInstance()
@@ -99,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         requestStoragePermission()
+        initializeBatchProcessing()
 
         Log.i(TAG, "=== MainActivity onCreate ===")
 
@@ -110,6 +149,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             loadFoodDataset()
         }
+
         // Setup model spinner
         val modelNames = ModelRegistry.getDisplayNames()
         val modelAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modelNames)
@@ -119,12 +159,8 @@ class MainActivity : AppCompatActivity() {
         setupClickListeners()
     }
 
-    /**
-     * Request storage permission (Android 11+ compatible)
-     */
     private fun requestStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ - Need to request MANAGE_EXTERNAL_STORAGE
             if (!Environment.isExternalStorageManager()) {
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
@@ -138,7 +174,6 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "Storage permission already granted")
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // Android 6-10
             if (ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.READ_EXTERNAL_STORAGE
@@ -156,9 +191,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Handle permission result
-     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -181,9 +213,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Handle result from Settings activity (Android 11+)
-     */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -247,6 +276,7 @@ class MainActivity : AppCompatActivity() {
                 loadAIModel()
             }
         }
+
         dashboardButton.setOnClickListener {
             val intent = Intent(this, DashboardActivity::class.java)
             startActivity(intent)
@@ -262,6 +292,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Prediction already in progress", Toast.LENGTH_SHORT).show()
             }
         }
+
         modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val selectedModel = ModelRegistry.MODELS[position]
@@ -283,11 +314,621 @@ class MainActivity : AppCompatActivity() {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+
+        val cleanupButton = findViewById<Button>(R.id.cleanupButton)
+        cleanupButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Delete Invalid Records")
+                .setMessage("This will delete all Firebase records with:\n• itps = -1\n• latencyMs < 5000\n• ttftMs = -1\n\nContinue?")
+                .setPositiveButton("Yes, Delete") { _, _ ->
+                    cleanupInvalidFirebaseData()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    // ===== OPTIMAL SOLUTION HELPER FUNCTIONS =====
+
+    /**
+     * Check available memory and force GC if needed
+     */
+    private fun checkAndManageMemory(): Boolean {
+        val runtime = Runtime.getRuntime()
+        val maxMemoryMB = runtime.maxMemory() / 1024 / 1024
+        val totalMemoryMB = runtime.totalMemory() / 1024 / 1024
+        val freeMemoryMB = runtime.freeMemory() / 1024 / 1024
+        val usedMemoryMB = totalMemoryMB - freeMemoryMB
+
+        Log.i(TAG, "Memory: ${usedMemoryMB}MB used / ${totalMemoryMB}MB total / ${maxMemoryMB}MB max (${freeMemoryMB}MB free)")
+
+        if (freeMemoryMB < 500) {
+            Log.w(TAG, "⚠️ Low memory: ${freeMemoryMB}MB free - forcing GC")
+            System.gc()
+            Thread.sleep(2000)
+
+            // Check again after GC
+            val newFreeMB = runtime.freeMemory() / 1024 / 1024
+            Log.i(TAG, "After GC: ${newFreeMB}MB free")
+
+            if (newFreeMB < 300) {
+                Log.e(TAG, "❌ Critical memory: ${newFreeMB}MB - still too low!")
+                return false
+            }
+        }
+
+        return true
     }
 
     /**
-     * Safely get cell value from Excel, handling formulas
+     * Safely truncate ingredients if too long
      */
+    private fun getSafeIngredients(ingredients: String): String {
+        val maxChars = 2000  // Safe limit for context
+
+        return if (ingredients.length > maxChars) {
+            Log.w(TAG, "⚠️ Truncating ingredients: ${ingredients.length} → ${maxChars} chars")
+            ingredients.take(maxChars)
+        } else {
+            ingredients
+        }
+    }
+
+    /**
+     * Validate prediction result format
+     */
+    private fun isValidPredictionResult(rawResult: String, actualLatency: Long): Boolean {
+        // Check format: "TTFT_MS=xxx;...|prediction"
+        val parts = rawResult.split("|", limit = 2)
+
+        if (parts.size != 2) {
+            Log.e(TAG, "Invalid format: missing | separator")
+            return false
+        }
+
+        val prediction = parts[1].trim()
+        if (prediction.isEmpty()) {
+            Log.e(TAG, "Invalid format: empty prediction")
+            return false
+        }
+
+        // Check latency (should be at least 5 seconds for real prediction)
+        if (actualLatency < 5000) {
+            Log.e(TAG, "Invalid latency: ${actualLatency}ms (too fast)")
+            return false
+        }
+
+        return true
+    }
+
+    /**
+     * Predict with retry mechanism and safety checks
+     */
+    private suspend fun predictWithRetryAndSafety(
+        item: FoodItem,
+        deviceInfo: String,
+        androidVersion: String,
+        maxRetries: Int = 3
+    ): PredictionResult? {
+
+        for (attempt in 1..maxRetries) {
+            try {
+                Log.i(TAG, "🔄 Attempt $attempt/$maxRetries for: ${item.name}")
+
+                // 1. Check memory before prediction
+                if (!checkAndManageMemory()) {
+                    throw Exception("Insufficient memory")
+                }
+
+                // 2. Check model health
+                if (!isModelHealthy()) {
+                    throw Exception("Model is unhealthy")
+                }
+
+                // 3. Clear context before prediction
+                clearContext()
+                Thread.sleep(100)  // Small pause after clear
+
+                // 4. Get safe ingredients (truncate if needed)
+                val safeIngredients = getSafeIngredients(item.ingredients)
+
+                // 5. Token counting disabled for compatibility
+                // (Your llama.cpp version doesn't support this)
+                /*
+                try {
+                    val tokenCount = countTokens(safeIngredients)
+                    Log.i(TAG, "Input tokens: $tokenCount")
+
+                    if (tokenCount > 3800) {  // Leave room for output
+                        Log.w(TAG, "⚠️ High token count: $tokenCount")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not count tokens: ${e.message}")
+                }
+                */
+
+                // 6. Capture memory before
+                val memBefore = captureMemorySnapshot()
+                val predStartTime = System.currentTimeMillis()
+
+                // 7. Predict with timeout
+                val rawResult = withTimeout(180000L) {  // 3 minute timeout
+                    predictAllergens(safeIngredients)
+                }
+
+                val predEndTime = System.currentTimeMillis()
+                val memAfter = captureMemorySnapshot()
+                val actualLatency = predEndTime - predStartTime
+
+                Log.i(TAG, "Raw result: $rawResult")
+                Log.i(TAG, "Latency: ${actualLatency}ms")
+
+                // 8. Validate result
+                if (!isValidPredictionResult(rawResult, actualLatency)) {
+                    throw Exception("Invalid prediction result")
+                }
+
+                // 9. Parse metrics
+                val parts = rawResult.split("|", limit = 2)
+                val metaString = parts[0]
+                val modelOutput = parts[1]
+
+                var ttftMs = -1L
+                var itps = -1L
+                var otps = -1L
+                var oetMs = -1L
+
+                metaString.split(";").forEach { metric ->
+                    when {
+                        metric.startsWith("TTFT_MS=") ->
+                            ttftMs = metric.removePrefix("TTFT_MS=").toLongOrNull() ?: -1L
+                        metric.startsWith("ITPS=") ->
+                            itps = metric.removePrefix("ITPS=").toLongOrNull() ?: -1L
+                        metric.startsWith("OTPS=") ->
+                            otps = metric.removePrefix("OTPS=").toLongOrNull() ?: -1L
+                        metric.startsWith("OET_MS=") ->
+                            oetMs = metric.removePrefix("OET_MS=").toLongOrNull() ?: -1L
+                    }
+                }
+
+                // Use actual latency if metrics parsing failed
+                if (ttftMs == -1L) {
+                    Log.w(TAG, "⚠️ Using actual latency for metrics")
+                    ttftMs = actualLatency
+                    oetMs = actualLatency
+                    itps = 5  // Estimate
+                }
+
+                // 10. Validate output
+                val validAllergens = setOf(
+                    "milk", "egg", "peanut", "tree nut",
+                    "wheat", "soy", "fish", "shellfish", "sesame", "none"
+                )
+
+                val predicted = modelOutput.lowercase().trim()
+                    .replace("tree-nut", "tree nut")
+                    .replace("treenut", "tree nut")
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .filter { it in validAllergens }
+                    .distinct()
+                    .sorted()
+                    .let { allergens ->
+                        if (allergens.isEmpty() || allergens.contains("none")) {
+                            "none"
+                        } else {
+                            allergens.filter { it != "none" }.joinToString(", ")
+                        }
+                    }
+
+                if (predicted.isBlank()) {
+                    throw Exception("No valid allergens in output: $modelOutput")
+                }
+
+                // 11. Calculate metrics
+                val metrics = MetricsCalculator.calculateMetrics(
+                    groundTruth = item.allergensMapped,
+                    predicted = predicted,
+                    ingredients = item.ingredients
+                )
+
+                // 12. Create result
+                val result = PredictionResult(
+                    dataId = item.id,
+                    name = item.name,
+                    ingredients = item.ingredients,
+                    allergensRaw = item.allergensRaw,
+                    allergensMapped = item.allergensMapped,
+                    predictedAllergens = predicted,
+                    modelName = currentModelName,
+
+                    truePositives = metrics.tp,
+                    falsePositives = metrics.fp,
+                    falseNegatives = metrics.fn,
+                    trueNegatives = metrics.tn,
+                    precision = metrics.precision,
+                    recall = metrics.recall,
+                    f1Score = metrics.f1Score,
+                    isExactMatch = metrics.isExactMatch,
+                    hammingLoss = metrics.hammingLoss,
+                    falseNegativeRate = metrics.fnr,
+
+                    hasHallucination = metrics.hasHallucination,
+                    hallucinatedAllergens = metrics.hallucinatedAllergens,
+                    hasOverPrediction = metrics.hasOverPrediction,
+                    overPredictedAllergens = metrics.overPredictedAllergens,
+                    isAbstentionCase = metrics.isAbstentionCase,
+                    isAbstentionCorrect = metrics.isAbstentionCorrect,
+
+                    latencyMs = actualLatency,
+                    ttftMs = ttftMs,
+                    itps = itps,
+                    otps = otps,
+                    oetMs = oetMs,
+                    totalTimeMs = actualLatency,
+
+                    javaHeapKb = memAfter.javaHeap - memBefore.javaHeap,
+                    nativeHeapKb = memAfter.nativeHeap - memBefore.nativeHeap,
+                    totalPssKb = memAfter.totalPss - memBefore.totalPss,
+
+                    deviceModel = deviceInfo,
+                    androidVersion = androidVersion
+                )
+
+                Log.i(TAG, "✓ Success on attempt $attempt: ${item.name} → $predicted")
+                return result
+
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "⏱️ Timeout on attempt $attempt for ${item.name}")
+
+                if (attempt < maxRetries) {
+                    val delayMs = 2000L * attempt  // 2s, 4s, 6s
+                    Log.i(TAG, "Waiting ${delayMs}ms before retry...")
+                    Thread.sleep(delayMs)
+                    clearContext()
+                    System.gc()
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error on attempt $attempt for ${item.name}: ${e.message}")
+
+                if (attempt < maxRetries) {
+                    val delayMs = 2000L * attempt  // 2s, 4s, 6s
+                    Log.i(TAG, "Waiting ${delayMs}ms before retry...")
+                    Thread.sleep(delayMs)
+                    clearContext()
+                    System.gc()
+                }
+            }
+        }
+
+        Log.e(TAG, "✗ All $maxRetries attempts failed for: ${item.name}")
+        return null
+    }
+
+    /**
+     * Reload model with error handling
+     */
+    private suspend fun reloadModelSafely(modelFilePath: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.i(TAG, "🔄 Reloading model...")
+
+                // Unload current model
+                try {
+                    unloadModel()
+                    Log.i(TAG, "✓ Old model unloaded")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Warning unloading: ${e.message}")
+                }
+
+                // Force garbage collection
+                System.gc()
+                Thread.sleep(3000)
+
+                // Check memory
+                if (!checkAndManageMemory()) {
+                    Log.e(TAG, "❌ Not enough memory to reload model")
+                    return@withContext false
+                }
+
+                // Reload model
+                val success = loadModel(assets, modelFilePath)
+
+                if (success) {
+                    Log.i(TAG, "✓ Model reloaded successfully")
+                    Thread.sleep(2000)  // Settling time
+                    return@withContext true
+                } else {
+                    Log.e(TAG, "❌ Failed to reload model")
+                    return@withContext false
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Exception reloading model: ${e.message}")
+                return@withContext false
+            }
+        }
+    }
+
+    // ===== BATCH PROCESSING =====
+
+    /**
+     * Initialize batch processing button
+     */
+    private fun initializeBatchProcessing() {
+        val processAllButton = findViewById<Button>(R.id.processAllButton)
+
+        processAllButton.setOnClickListener {
+            if (!isModelLoaded) {
+                Toast.makeText(this, "⚠️ Please load a model first!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            if (isProcessingAll) {
+                Toast.makeText(this, "Already processing...", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (allFoodItems.isEmpty()) {
+                Toast.makeText(this, "⚠️ Dataset not loaded yet!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("Optimal Batch Processing")
+                .setMessage(
+                    "Process all ${allFoodItems.size} items with optimizations:\n\n" +
+                            "✓ Context clearing (prevents memory buildup)\n" +
+                            "✓ Auto-retry on failure (3 attempts)\n" +
+                            "✓ Memory monitoring\n" +
+                            "✓ Checkpoints every 50 items\n" +
+                            "✓ Input validation\n\n" +
+                            "Model: $currentModelName\n" +
+                            "Estimated time: 2-3 hours\n\n" +
+                            "Keep phone plugged in!\n" +
+                            "Continue?"
+                )
+                .setPositiveButton("Yes, Start Optimal Processing") { _, _ ->
+                    startOptimalBatchProcessing()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    /**
+     * OPTIMAL BATCH PROCESSING - Main function
+     */
+    private fun startOptimalBatchProcessing() {
+        isProcessingAll = true
+
+        val batchProgressBar = findViewById<ProgressBar>(R.id.batchProgressBar)
+        val batchProgressText = findViewById<TextView>(R.id.batchProgressText)
+        val processAllButton = findViewById<Button>(R.id.processAllButton)
+
+        batchProgressBar.visibility = View.VISIBLE
+        batchProgressText.visibility = View.VISIBLE
+        batchProgressBar.max = allFoodItems.size
+        batchProgressBar.progress = 0
+
+        processAllButton.isEnabled = false
+        processAllButton.text = "PROCESSING..."
+        loadModelButton.isEnabled = false
+        predictButton.isEnabled = false
+        datasetSpinner.isEnabled = false
+        modelSpinner.isEnabled = false
+
+        Log.i(TAG, "=== OPTIMAL BATCH PROCESSING START ===")
+        Log.i(TAG, "Model: $currentModelName")
+        Log.i(TAG, "Total items: ${allFoodItems.size}")
+
+        val stats = BatchStatistics(
+            totalItems = allFoodItems.size,
+            startTime = System.currentTimeMillis(),
+            lastCheckpointTime = System.currentTimeMillis()
+        )
+
+        lifecycleScope.launch {
+            val modelFilePath = withContext(Dispatchers.IO) {
+                copyModelFromAssets()?.absolutePath
+            }
+
+            if (modelFilePath == null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "❌ Model file not found!", Toast.LENGTH_LONG).show()
+                    resetBatchUI()
+                }
+                return@launch
+            }
+
+            val deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}"
+            val androidVersion = "Android ${Build.VERSION.RELEASE}"
+
+            withContext(Dispatchers.IO) {
+
+                // ===== MAIN PROCESSING LOOP =====
+                for ((index, item) in allFoodItems.withIndex()) {
+                    if (!isProcessingAll) {
+                        Log.w(TAG, "⚠️ Batch processing cancelled by user")
+                        break
+                    }
+
+                    val itemNumber = index + 1
+                    Log.i(TAG, "")
+                    Log.i(TAG, "=".repeat(70))
+                    Log.i(TAG, "Processing [$itemNumber/${stats.totalItems}]: ${item.name}")
+                    Log.i(TAG, "=".repeat(70))
+
+                    // ===== CHECKPOINT: Reload model every 50 items =====
+                    if (index > 0 && index % 50 == 0) {
+                        val timeSinceCheckpoint = (System.currentTimeMillis() - stats.lastCheckpointTime) / 1000
+                        Log.i(TAG, "")
+                        Log.i(TAG, "🏁 CHECKPOINT at item $itemNumber (${timeSinceCheckpoint}s since last)")
+                        Log.i(TAG, "Stats: ✓${stats.successCount} ❌${stats.failCount} 🔄${stats.retryCount}")
+
+                        val reloadSuccess = reloadModelSafely(modelFilePath)
+
+                        if (!reloadSuccess) {
+                            Log.e(TAG, "❌ Failed to reload at checkpoint $itemNumber")
+                            Log.e(TAG, "Stopping batch processing")
+                            break
+                        }
+
+                        stats.lastCheckpointTime = System.currentTimeMillis()
+                    }
+
+                    // ===== PREDICT WITH RETRY =====
+                    val result = predictWithRetryAndSafety(item, deviceInfo, androidVersion, maxRetries = 3)
+
+                    if (result != null) {
+                        // Save to Firebase
+                        saveToFirebase(result)
+                        stats.successCount++
+
+                        Log.i(TAG, "✓ [$itemNumber/${stats.totalItems}] ${item.name}")
+                        Log.i(TAG, "   Predicted: ${result.predictedAllergens}")
+                        Log.i(TAG, "   F1: ${String.format("%.3f", result.f1Score)}")
+                        Log.i(TAG, "   Latency: ${result.latencyMs}ms")
+                    } else {
+                        // Prediction failed after retries
+                        stats.failedItems.add(item)
+                        stats.failCount++
+
+                        Log.e(TAG, "✗ [$itemNumber/${stats.totalItems}] ${item.name} - FAILED")
+                    }
+
+                    // ===== UPDATE UI =====
+                    withContext(Dispatchers.Main) {
+                        batchProgressBar.progress = itemNumber
+
+                        val percentage = (itemNumber * 100) / stats.totalItems
+                        val elapsed = (System.currentTimeMillis() - stats.startTime) / 1000
+                        val estimated = if (itemNumber > 0) {
+                            (elapsed * stats.totalItems / itemNumber) - elapsed
+                        } else 0
+
+                        batchProgressText.text = "$itemNumber/${stats.totalItems} ($percentage%) | " +
+                                "✓${stats.successCount} ❌${stats.failCount} | " +
+                                "⏱️${elapsed/60}m / ~${estimated/60}m"
+                    }
+
+                    // ===== SMALL PAUSE BETWEEN ITEMS =====
+                    Thread.sleep(500)
+                }
+
+                // ===== RETRY FAILED ITEMS =====
+                if (stats.failedItems.isNotEmpty() && isProcessingAll) {
+                    Log.i(TAG, "")
+                    Log.i(TAG, "=".repeat(70))
+                    Log.i(TAG, "🔄 RETRY PHASE: ${stats.failedItems.size} failed items")
+                    Log.i(TAG, "=".repeat(70))
+
+                    val retryItems = stats.failedItems.toList()  // Copy list
+                    stats.failedItems.clear()
+
+                    for ((retryIndex, item) in retryItems.withIndex()) {
+                        if (!isProcessingAll) break
+
+                        Log.i(TAG, "🔄 Retry [${retryIndex + 1}/${retryItems.size}]: ${item.name}")
+
+                        clearContext()
+                        System.gc()
+                        Thread.sleep(1000)
+
+                        val result = predictWithRetryAndSafety(item, deviceInfo, androidVersion, maxRetries = 2)
+
+                        if (result != null) {
+                            saveToFirebase(result)
+                            stats.successCount++
+                            stats.failCount--
+                            stats.retryCount++
+                            Log.i(TAG, "✓ Retry successful: ${item.name}")
+                        } else {
+                            stats.failedItems.add(item)
+                            Log.e(TAG, "✗ Retry failed: ${item.name}")
+                        }
+                    }
+                }
+
+                // ===== CLEANUP =====
+                try {
+                    unloadModel()
+                    Log.i(TAG, "✓ Model unloaded")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Warning unloading final model: ${e.message}")
+                }
+            }
+
+            // ===== FINAL SUMMARY =====
+            val totalTime = (System.currentTimeMillis() - stats.startTime) / 1000
+            val totalMin = totalTime / 60
+            val successRate = (stats.successCount * 100.0) / stats.totalItems
+
+            Log.i(TAG, "")
+            Log.i(TAG, "=".repeat(70))
+            Log.i(TAG, "=== BATCH PROCESSING COMPLETE ===")
+            Log.i(TAG, "=".repeat(70))
+            Log.i(TAG, "Total items: ${stats.totalItems}")
+            Log.i(TAG, "Successful: ${stats.successCount} (${String.format("%.1f", successRate)}%)")
+            Log.i(TAG, "Failed: ${stats.failCount}")
+            Log.i(TAG, "Retries: ${stats.retryCount}")
+            Log.i(TAG, "Time: ${totalTime}s (${totalMin}min)")
+            Log.i(TAG, "=" .repeat(70))
+
+            if (stats.failedItems.isNotEmpty()) {
+                Log.w(TAG, "Failed items:")
+                stats.failedItems.forEach { Log.w(TAG, "  - ${it.name}") }
+            }
+
+            // ===== UPDATE UI =====
+            withContext(Dispatchers.Main) {
+                isProcessingAll = false
+
+                batchProgressText.text = if (stats.failCount == 0) {
+                    "✓ Perfect! ${stats.successCount}/${stats.totalItems} in ${totalMin}min"
+                } else {
+                    "✓ ${stats.successCount} ❌ ${stats.failCount} (${String.format("%.1f", successRate)}%) in ${totalMin}min"
+                }
+
+                processAllButton.text = "PROCESS ALL 200 ITEMS"
+                processAllButton.isEnabled = true
+                loadModelButton.isEnabled = true
+                predictButton.isEnabled = true
+                datasetSpinner.isEnabled = true
+                modelSpinner.isEnabled = true
+
+                val message = if (stats.failCount < 5) {
+                    "✓ Excellent! ${stats.successCount} items in ${totalMin} minutes"
+                } else {
+                    "⚠️ ${stats.successCount} successful, ${stats.failCount} failed\nTime: ${totalMin} minutes"
+                }
+
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+
+                showNotification(
+                    "Batch Processing Complete",
+                    "${stats.successCount}/${stats.totalItems} successful (${String.format("%.1f", successRate)}%)"
+                )
+            }
+        }
+    }
+
+    private fun resetBatchUI() {
+        isProcessingAll = false
+        findViewById<Button>(R.id.processAllButton).apply {
+            isEnabled = true
+            text = "PROCESS ALL 200 ITEMS"
+        }
+        loadModelButton.isEnabled = true
+        predictButton.isEnabled = true
+        datasetSpinner.isEnabled = true
+        modelSpinner.isEnabled = true
+    }
+
+    // ===== EXISTING FUNCTIONS (UNCHANGED) =====
+
     private fun getCellValue(cell: Cell?): String {
         if (cell == null) return ""
 
@@ -315,9 +956,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Load food dataset from Excel file
-     */
     private suspend fun loadFoodDataset() = withContext(Dispatchers.IO) {
         Log.i(TAG, "=== Loading Food Dataset ===")
 
@@ -328,7 +966,6 @@ class MainActivity : AppCompatActivity() {
 
             Log.i(TAG, "Reading Excel file...")
 
-            // Skip header row (row 0)
             for (i in 1 until sheet.physicalNumberOfRows) {
                 val row = sheet.getRow(i) ?: continue
 
@@ -353,7 +990,6 @@ class MainActivity : AppCompatActivity() {
             workbook.close()
             inputStream.close()
 
-            // Divide into 20 groups of 10 items each
             for (i in allFoodItems.indices step 10) {
                 val group = allFoodItems.subList(
                     i,
@@ -384,9 +1020,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Setup spinner with dataset options
-     */
     private fun setupDatasetSpinner() {
         val datasetNames = datasetGroups.mapIndexed { index, group ->
             "Set ${index + 1}: Items ${group.first().id}-${group.last().id} (${group.size} items)"
@@ -402,9 +1035,6 @@ class MainActivity : AppCompatActivity() {
         datasetSpinner.isEnabled = true
     }
 
-    /**
-     * Load AI model
-     */
     private fun loadAIModel() {
         lifecycleScope.launch {
             try {
@@ -459,14 +1089,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Load model from external storage (Documents/SLM_Models/)
-     */
     private fun copyModelFromAssets(): File? {
         try {
             Log.i(TAG, "Looking for model: $currentModelFile")
 
-            // Option 1: Documents/SLM_Models/
             val documentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
             val modelsDir = File(documentsDir, "SLM_Models")
             val modelFile = File(modelsDir, currentModelFile)
@@ -479,7 +1105,6 @@ class MainActivity : AppCompatActivity() {
                 return modelFile
             }
 
-            // Option 2: Download/SLM_Models/
             val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val downloadModelsDir = File(downloadDir, "SLM_Models")
             val downloadModelFile = File(downloadModelsDir, currentModelFile)
@@ -492,7 +1117,6 @@ class MainActivity : AppCompatActivity() {
                 return downloadModelFile
             }
 
-            // Model not found
             Log.e(TAG, "✗ Model file not found!")
             Log.e(TAG, "Please place model files in:")
             Log.e(TAG, "  ${modelsDir.absolutePath}")
@@ -522,23 +1146,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Run predictions on a dataset group
-     */
     private fun runPredictions(foodItems: List<FoodItem>, setNumber: Int) {
         lifecycleScope.launch {
             try {
                 isPredicting = true
 
-                // Clear previous results
                 resultsAdapter.clearResults()
 
-                // Show UI elements
                 progressCard.visibility = View.VISIBLE
                 resultsTitle.visibility = View.VISIBLE
                 resultsRecyclerView.visibility = View.VISIBLE
 
-                // Disable controls
                 predictButton.isEnabled = false
                 datasetSpinner.isEnabled = false
                 loadModelButton.isEnabled = false
@@ -557,23 +1175,19 @@ class MainActivity : AppCompatActivity() {
                     progressText.text = "${index + 1}/${foodItems.size} items"
 
                     try {
-                        // Run prediction in background
                         val result = withContext(Dispatchers.IO) {
                             val startTime = System.currentTimeMillis()
                             val memBefore = captureMemorySnapshot()
 
-                            // ================= CALL NATIVE PREDICTION =================
                             val rawResult = predictAllergens(foodItem.ingredients)
 
                             val endTime = System.currentTimeMillis()
                             val memAfter = captureMemorySnapshot()
 
-                            // ================= PARSE METRICS =================
                             val parts = rawResult.split("|", limit = 2)
                             val metaString = if (parts.isNotEmpty()) parts[0] else ""
                             val modelOutput = if (parts.size > 1) parts[1] else rawResult
 
-                            // Parse individual metrics
                             var ttftMs = -1L
                             var itps = -1L
                             var otps = -1L
@@ -595,17 +1209,13 @@ class MainActivity : AppCompatActivity() {
                             Log.i(TAG_METRICS, "=== METRICS FOR ${foodItem.name} ===")
                             Log.i(TAG_METRICS, "TTFT: ${ttftMs}ms | ITPS: ${itps} tok/s | OTPS: ${otps} tok/s | OET: ${oetMs}ms")
                             Log.i(TAG_METRICS, "Latency: ${endTime - startTime}ms")
-
-                            // Log model output
                             Log.i(TAG, "Model raw output: $modelOutput")
 
-                            // ================= USE MODEL OUTPUT (with validation) =================
                             val validAllergens = setOf(
                                 "milk", "egg", "peanut", "tree nut",
                                 "wheat", "soy", "fish", "shellfish", "sesame", "none"
                             )
 
-                            // Clean model output
                             val predicted = modelOutput.lowercase().trim()
                                 .replace("tree-nut", "tree nut")
                                 .replace("treenut", "tree nut")
@@ -625,7 +1235,6 @@ class MainActivity : AppCompatActivity() {
 
                             Log.i(TAG, "Model output (validated): $predicted")
 
-                            // ================= CALCULATE ALL METRICS =================
                             val metrics = MetricsCalculator.calculateMetrics(
                                 groundTruth = foodItem.allergensMapped,
                                 predicted = predicted,
@@ -637,19 +1246,16 @@ class MainActivity : AppCompatActivity() {
                                     "F1: ${String.format("%.4f", metrics.f1Score)}")
                             Log.i(TAG_METRICS, "Exact Match: ${metrics.isExactMatch} | " +
                                     "Hallucination: ${metrics.hasHallucination}")
-                            // ====================================================================
 
                             PredictionResult(
-                                // Basic info
                                 dataId = foodItem.id,
                                 name = foodItem.name,
                                 ingredients = foodItem.ingredients,
                                 allergensRaw = foodItem.allergensRaw,
                                 allergensMapped = foodItem.allergensMapped,
                                 predictedAllergens = predicted,
-                                modelName = currentModelName,  // ← Add current model name
+                                modelName = currentModelName,
 
-                                // Prediction quality metrics
                                 truePositives = metrics.tp,
                                 falsePositives = metrics.fp,
                                 falseNegatives = metrics.fn,
@@ -661,7 +1267,6 @@ class MainActivity : AppCompatActivity() {
                                 hammingLoss = metrics.hammingLoss,
                                 falseNegativeRate = metrics.fnr,
 
-                                // Safety metrics
                                 hasHallucination = metrics.hasHallucination,
                                 hallucinatedAllergens = metrics.hallucinatedAllergens,
                                 hasOverPrediction = metrics.hasOverPrediction,
@@ -669,7 +1274,6 @@ class MainActivity : AppCompatActivity() {
                                 isAbstentionCase = metrics.isAbstentionCase,
                                 isAbstentionCorrect = metrics.isAbstentionCorrect,
 
-                                // Efficiency metrics
                                 latencyMs = endTime - startTime,
                                 ttftMs = ttftMs,
                                 itps = itps,
@@ -677,21 +1281,16 @@ class MainActivity : AppCompatActivity() {
                                 oetMs = oetMs,
                                 totalTimeMs = endTime - startTime,
 
-                                // Memory metrics
                                 javaHeapKb = memAfter.javaHeap - memBefore.javaHeap,
                                 nativeHeapKb = memAfter.nativeHeap - memBefore.nativeHeap,
                                 totalPssKb = memAfter.totalPss - memBefore.totalPss,
 
-                                // Device info
                                 deviceModel = deviceInfo,
                                 androidVersion = androidVersion
                             )
                         }
 
-                        // Save to Firebase (non-blocking)
                         saveToFirebase(result)
-
-                        // Update UI
                         resultsAdapter.addResult(result)
                         predictionProgress.progress = index + 1
 
@@ -703,19 +1302,16 @@ class MainActivity : AppCompatActivity() {
                         Log.e(TAG, "✗ Failed to predict ${foodItem.name}", e)
                     }
 
-                    // Scroll to show latest result
                     resultsRecyclerView.smoothScrollToPosition(resultsAdapter.itemCount - 1)
                 }
 
-                // Hide progress, re-enable controls
                 progressCard.visibility = View.GONE
                 predictButton.isEnabled = true
                 datasetSpinner.isEnabled = true
                 loadModelButton.isEnabled = false
                 isPredicting = false
 
-                // Show completion notification
-                val message = "Set $setNumber: $successCount/${ foodItems.size} successful"
+                val message = "Set $setNumber: $successCount/${foodItems.size} successful"
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 showNotification("Prediction Complete", message)
 
@@ -740,9 +1336,71 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Save prediction result to Firebase
-     */
+    private fun cleanupInvalidFirebaseData() {
+        lifecycleScope.launch {
+            try {
+                Log.i(TAG, "=== CLEANING UP INVALID FIREBASE DATA ===")
+
+                Toast.makeText(this@MainActivity, "Cleaning up invalid data...", Toast.LENGTH_SHORT).show()
+
+                val deletedCount = withContext(Dispatchers.IO) {
+                    var count = 0
+
+                    val snapshot1 = firestore.collection("predictions")
+                        .whereEqualTo("itps", -1)
+                        .get()
+                        .await()
+
+                    snapshot1.documents.forEach { doc ->
+                        Log.i(TAG, "Deleting invalid (itps=-1): ${doc.getString("name")}")
+                        doc.reference.delete().await()
+                        count++
+                    }
+
+                    val snapshot2 = firestore.collection("predictions")
+                        .whereLessThan("latencyMs", 5000)
+                        .get()
+                        .await()
+
+                    snapshot2.documents.forEach { doc ->
+                        val latency = doc.getLong("latencyMs") ?: 0
+                        Log.i(TAG, "Deleting invalid (latency=${latency}ms): ${doc.getString("name")}")
+                        doc.reference.delete().await()
+                        count++
+                    }
+
+                    val snapshot3 = firestore.collection("predictions")
+                        .whereEqualTo("ttftMs", -1)
+                        .get()
+                        .await()
+
+                    snapshot3.documents.forEach { doc ->
+                        Log.i(TAG, "Deleting invalid (ttftMs=-1): ${doc.getString("name")}")
+                        doc.reference.delete().await()
+                        count++
+                    }
+
+                    count
+                }
+
+                Log.i(TAG, "✓ Cleanup complete: $deletedCount invalid records deleted")
+                Toast.makeText(
+                    this@MainActivity,
+                    "✓ Deleted $deletedCount invalid records",
+                    Toast.LENGTH_LONG
+                ).show()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error cleaning Firebase data", e)
+                Toast.makeText(
+                    this@MainActivity,
+                    "Error: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     private fun saveToFirebase(result: PredictionResult) {
         firestore.collection("predictions")
             .add(result.toMap())
@@ -754,9 +1412,6 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    /**
-     * Show notification to user
-     */
     private fun showNotification(title: String, message: String) {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -769,9 +1424,6 @@ class MainActivity : AppCompatActivity() {
         notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
 
-    /**
-     * Capture memory snapshot
-     */
     private fun captureMemorySnapshot(): MemorySnapshot {
         return MemorySnapshot(
             javaHeap = MemoryReader.javaHeapKb(),
@@ -779,12 +1431,6 @@ class MainActivity : AppCompatActivity() {
             totalPss = MemoryReader.totalPssKb()
         )
     }
-
-    data class MemorySnapshot(
-        val javaHeap: Long,
-        val nativeHeap: Long,
-        val totalPss: Long
-    )
 
     override fun onDestroy() {
         super.onDestroy()

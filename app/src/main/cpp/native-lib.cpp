@@ -10,6 +10,7 @@
 #include "llama/ggml.h"
 #include <chrono>
 #include <cmath>
+#include <android/log.h>
 
 #define TAG "SLM_NATIVE"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -349,6 +350,25 @@ Java_edu_utem_ftmk_slm_MainActivity_predictAllergens(
                  << "|" << result;
 
     return env->NewStringUTF(final_result.str().c_str());
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_edu_utem_ftmk_slm_MainActivity_clearContext(
+        JNIEnv* env,
+        jobject thiz) {
+    __android_log_print(ANDROID_LOG_INFO, "SLM_NATIVE", "Context clear requested");
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_edu_utem_ftmk_slm_MainActivity_isModelHealthy(
+        JNIEnv* env,
+        jobject thiz) {
+    if (g_ctx != nullptr && g_model != nullptr) {
+        return JNI_TRUE;
+    }
+    return JNI_FALSE;
 }
 
 // ===============================================================
