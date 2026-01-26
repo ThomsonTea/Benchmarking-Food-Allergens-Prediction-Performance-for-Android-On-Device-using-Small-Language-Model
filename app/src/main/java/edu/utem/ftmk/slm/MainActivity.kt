@@ -35,7 +35,8 @@ import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.tasks.await
-
+import android.view.LayoutInflater
+import android.view.ViewGroup
 
 class MainActivity : AppCompatActivity() {
 
@@ -66,21 +67,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ===== NATIVE FUNCTION DECLARATIONS =====
-    // Existing functions
     external fun loadModel(assetManager: android.content.res.AssetManager, modelPath: String): Boolean
     external fun predictAllergens(ingredients: String): String
     external fun getModelInfo(): String
     external fun unloadModel()
-
-    // NEW: Optimal solution functions (MINIMAL VERSION)
     external fun clearContext()
     external fun isModelHealthy(): Boolean
-    // Optional functions removed for compatibility:
-    // external fun getModelMemoryInfo(): String
-    // external fun countTokens(text: String): Int
 
     // ===== DATA CLASSES =====
-    // NEW: Batch statistics tracking
     data class BatchStatistics(
         var totalItems: Int = 0,
         var successCount: Int = 0,
@@ -115,9 +109,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var predictionProgress: ProgressBar
     private lateinit var resultsTitle: TextView
     private lateinit var resultsRecyclerView: RecyclerView
-    private lateinit var resultsAdapter: ResultsAdapter
     private lateinit var modelSpinner: Spinner
-    private lateinit var dashboardButton: Button
+
+    private lateinit var resultsAdapter: SimpleResultsAdapter
 
     private var currentModelName: String = "Qwen 2.5 1.5B"
     private var currentModelFile: String = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
@@ -155,6 +149,14 @@ class MainActivity : AppCompatActivity() {
         val modelAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modelNames)
         modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         modelSpinner.adapter = modelAdapter
+
+        findViewById<Button>(R.id.viewHistoryButton).setOnClickListener {
+            startActivity(Intent(this, PredictionHistoryActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.viewDashboardButton).setOnClickListener {
+            startActivity(Intent(this, EnhancedDashboardActivity::class.java))
+        }
 
         setupClickListeners()
     }
@@ -246,11 +248,11 @@ class MainActivity : AppCompatActivity() {
         predictionProgress = findViewById(R.id.predictionProgress)
         resultsTitle = findViewById(R.id.resultsTitle)
         resultsRecyclerView = findViewById(R.id.resultsRecyclerView)
-        dashboardButton = findViewById(R.id.dashboardButton)
+
     }
 
     private fun setupRecyclerView() {
-        resultsAdapter = ResultsAdapter()
+        resultsAdapter = SimpleResultsAdapter()  // ✅ FIXED
         resultsRecyclerView.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = resultsAdapter
@@ -277,10 +279,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        dashboardButton.setOnClickListener {
-            val intent = Intent(this, DashboardActivity::class.java)
-            startActivity(intent)
-        }
+
 
         predictButton.setOnClickListener {
             if (!isPredicting) {
@@ -330,9 +329,6 @@ class MainActivity : AppCompatActivity() {
 
     // ===== OPTIMAL SOLUTION HELPER FUNCTIONS =====
 
-    /**
-     * Check available memory and force GC if needed
-     */
     private fun checkAndManageMemory(): Boolean {
         val runtime = Runtime.getRuntime()
         val maxMemoryMB = runtime.maxMemory() / 1024 / 1024
@@ -347,7 +343,6 @@ class MainActivity : AppCompatActivity() {
             System.gc()
             Thread.sleep(2000)
 
-            // Check again after GC
             val newFreeMB = runtime.freeMemory() / 1024 / 1024
             Log.i(TAG, "After GC: ${newFreeMB}MB free")
 
@@ -360,12 +355,8 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    /**
-     * Safely truncate ingredients if too long
-     */
     private fun getSafeIngredients(ingredients: String): String {
-        val maxChars = 2000  // Safe limit for context
-
+        val maxChars = 2000
         return if (ingredients.length > maxChars) {
             Log.w(TAG, "⚠️ Truncating ingredients: ${ingredients.length} → ${maxChars} chars")
             ingredients.take(maxChars)
@@ -374,11 +365,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Validate prediction result format
-     */
     private fun isValidPredictionResult(rawResult: String, actualLatency: Long): Boolean {
-        // Check format: "TTFT_MS=xxx;...|prediction"
         val parts = rawResult.split("|", limit = 2)
 
         if (parts.size != 2) {
@@ -392,7 +379,6 @@ class MainActivity : AppCompatActivity() {
             return false
         }
 
-        // Check latency (should be at least 5 seconds for real prediction)
         if (actualLatency < 5000) {
             Log.e(TAG, "Invalid latency: ${actualLatency}ms (too fast)")
             return false
@@ -401,9 +387,6 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    /**
-     * Predict with retry mechanism and safety checks
-     */
     private suspend fun predictWithRetryAndSafety(
         item: FoodItem,
         deviceInfo: String,
@@ -415,44 +398,23 @@ class MainActivity : AppCompatActivity() {
             try {
                 Log.i(TAG, "🔄 Attempt $attempt/$maxRetries for: ${item.name}")
 
-                // 1. Check memory before prediction
                 if (!checkAndManageMemory()) {
                     throw Exception("Insufficient memory")
                 }
 
-                // 2. Check model health
                 if (!isModelHealthy()) {
                     throw Exception("Model is unhealthy")
                 }
 
-                // 3. Clear context before prediction
                 clearContext()
-                Thread.sleep(100)  // Small pause after clear
+                Thread.sleep(100)
 
-                // 4. Get safe ingredients (truncate if needed)
                 val safeIngredients = getSafeIngredients(item.ingredients)
 
-                // 5. Token counting disabled for compatibility
-                // (Your llama.cpp version doesn't support this)
-                /*
-                try {
-                    val tokenCount = countTokens(safeIngredients)
-                    Log.i(TAG, "Input tokens: $tokenCount")
-
-                    if (tokenCount > 3800) {  // Leave room for output
-                        Log.w(TAG, "⚠️ High token count: $tokenCount")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not count tokens: ${e.message}")
-                }
-                */
-
-                // 6. Capture memory before
                 val memBefore = captureMemorySnapshot()
                 val predStartTime = System.currentTimeMillis()
 
-                // 7. Predict with timeout
-                val rawResult = withTimeout(180000L) {  // 3 minute timeout
+                val rawResult = withTimeout(180000L) {
                     predictAllergens(safeIngredients)
                 }
 
@@ -463,12 +425,10 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "Raw result: $rawResult")
                 Log.i(TAG, "Latency: ${actualLatency}ms")
 
-                // 8. Validate result
                 if (!isValidPredictionResult(rawResult, actualLatency)) {
                     throw Exception("Invalid prediction result")
                 }
 
-                // 9. Parse metrics
                 val parts = rawResult.split("|", limit = 2)
                 val metaString = parts[0]
                 val modelOutput = parts[1]
@@ -491,15 +451,13 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // Use actual latency if metrics parsing failed
                 if (ttftMs == -1L) {
                     Log.w(TAG, "⚠️ Using actual latency for metrics")
                     ttftMs = actualLatency
                     oetMs = actualLatency
-                    itps = 5  // Estimate
+                    itps = 5
                 }
 
-                // 10. Validate output
                 val validAllergens = setOf(
                     "milk", "egg", "peanut", "tree nut",
                     "wheat", "soy", "fish", "shellfish", "sesame", "none"
@@ -526,14 +484,12 @@ class MainActivity : AppCompatActivity() {
                     throw Exception("No valid allergens in output: $modelOutput")
                 }
 
-                // 11. Calculate metrics
                 val metrics = MetricsCalculator.calculateMetrics(
                     groundTruth = item.allergensMapped,
                     predicted = predicted,
                     ingredients = item.ingredients
                 )
 
-                // 12. Create result
                 val result = PredictionResult(
                     dataId = item.id,
                     name = item.name,
@@ -550,6 +506,7 @@ class MainActivity : AppCompatActivity() {
                     precision = metrics.precision,
                     recall = metrics.recall,
                     f1Score = metrics.f1Score,
+                    accuracy = metrics.accuracy,
                     isExactMatch = metrics.isExactMatch,
                     hammingLoss = metrics.hammingLoss,
                     falseNegativeRate = metrics.fnr,
@@ -583,7 +540,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "⏱️ Timeout on attempt $attempt for ${item.name}")
 
                 if (attempt < maxRetries) {
-                    val delayMs = 2000L * attempt  // 2s, 4s, 6s
+                    val delayMs = 2000L * attempt
                     Log.i(TAG, "Waiting ${delayMs}ms before retry...")
                     Thread.sleep(delayMs)
                     clearContext()
@@ -594,7 +551,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "❌ Error on attempt $attempt for ${item.name}: ${e.message}")
 
                 if (attempt < maxRetries) {
-                    val delayMs = 2000L * attempt  // 2s, 4s, 6s
+                    val delayMs = 2000L * attempt
                     Log.i(TAG, "Waiting ${delayMs}ms before retry...")
                     Thread.sleep(delayMs)
                     clearContext()
@@ -607,15 +564,11 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
-    /**
-     * Reload model with error handling
-     */
     private suspend fun reloadModelSafely(modelFilePath: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 Log.i(TAG, "🔄 Reloading model...")
 
-                // Unload current model
                 try {
                     unloadModel()
                     Log.i(TAG, "✓ Old model unloaded")
@@ -623,22 +576,19 @@ class MainActivity : AppCompatActivity() {
                     Log.w(TAG, "Warning unloading: ${e.message}")
                 }
 
-                // Force garbage collection
                 System.gc()
                 Thread.sleep(3000)
 
-                // Check memory
                 if (!checkAndManageMemory()) {
                     Log.e(TAG, "❌ Not enough memory to reload model")
                     return@withContext false
                 }
 
-                // Reload model
                 val success = loadModel(assets, modelFilePath)
 
                 if (success) {
                     Log.i(TAG, "✓ Model reloaded successfully")
-                    Thread.sleep(2000)  // Settling time
+                    Thread.sleep(2000)
                     return@withContext true
                 } else {
                     Log.e(TAG, "❌ Failed to reload model")
@@ -654,9 +604,6 @@ class MainActivity : AppCompatActivity() {
 
     // ===== BATCH PROCESSING =====
 
-    /**
-     * Initialize batch processing button
-     */
     private fun initializeBatchProcessing() {
         val processAllButton = findViewById<Button>(R.id.processAllButton)
 
@@ -698,9 +645,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * OPTIMAL BATCH PROCESSING - Main function
-     */
     private fun startOptimalBatchProcessing() {
         isProcessingAll = true
 
@@ -748,7 +692,6 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.IO) {
 
-                // ===== MAIN PROCESSING LOOP =====
                 for ((index, item) in allFoodItems.withIndex()) {
                     if (!isProcessingAll) {
                         Log.w(TAG, "⚠️ Batch processing cancelled by user")
@@ -761,7 +704,6 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, "Processing [$itemNumber/${stats.totalItems}]: ${item.name}")
                     Log.i(TAG, "=".repeat(70))
 
-                    // ===== CHECKPOINT: Reload model every 50 items =====
                     if (index > 0 && index % 50 == 0) {
                         val timeSinceCheckpoint = (System.currentTimeMillis() - stats.lastCheckpointTime) / 1000
                         Log.i(TAG, "")
@@ -779,27 +721,24 @@ class MainActivity : AppCompatActivity() {
                         stats.lastCheckpointTime = System.currentTimeMillis()
                     }
 
-                    // ===== PREDICT WITH RETRY =====
                     val result = predictWithRetryAndSafety(item, deviceInfo, androidVersion, maxRetries = 3)
 
                     if (result != null) {
-                        // Save to Firebase
                         saveToFirebase(result)
                         stats.successCount++
 
                         Log.i(TAG, "✓ [$itemNumber/${stats.totalItems}] ${item.name}")
                         Log.i(TAG, "   Predicted: ${result.predictedAllergens}")
                         Log.i(TAG, "   F1: ${String.format("%.3f", result.f1Score)}")
+                        Log.i(TAG, "   Accuracy: ${String.format("%.3f", result.accuracy)}")
                         Log.i(TAG, "   Latency: ${result.latencyMs}ms")
                     } else {
-                        // Prediction failed after retries
                         stats.failedItems.add(item)
                         stats.failCount++
 
                         Log.e(TAG, "✗ [$itemNumber/${stats.totalItems}] ${item.name} - FAILED")
                     }
 
-                    // ===== UPDATE UI =====
                     withContext(Dispatchers.Main) {
                         batchProgressBar.progress = itemNumber
 
@@ -814,18 +753,16 @@ class MainActivity : AppCompatActivity() {
                                 "⏱️${elapsed/60}m / ~${estimated/60}m"
                     }
 
-                    // ===== SMALL PAUSE BETWEEN ITEMS =====
                     Thread.sleep(500)
                 }
 
-                // ===== RETRY FAILED ITEMS =====
                 if (stats.failedItems.isNotEmpty() && isProcessingAll) {
                     Log.i(TAG, "")
                     Log.i(TAG, "=".repeat(70))
                     Log.i(TAG, "🔄 RETRY PHASE: ${stats.failedItems.size} failed items")
                     Log.i(TAG, "=".repeat(70))
 
-                    val retryItems = stats.failedItems.toList()  // Copy list
+                    val retryItems = stats.failedItems.toList()
                     stats.failedItems.clear()
 
                     for ((retryIndex, item) in retryItems.withIndex()) {
@@ -852,7 +789,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // ===== CLEANUP =====
                 try {
                     unloadModel()
                     Log.i(TAG, "✓ Model unloaded")
@@ -861,7 +797,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ===== FINAL SUMMARY =====
             val totalTime = (System.currentTimeMillis() - stats.startTime) / 1000
             val totalMin = totalTime / 60
             val successRate = (stats.successCount * 100.0) / stats.totalItems
@@ -875,14 +810,13 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG, "Failed: ${stats.failCount}")
             Log.i(TAG, "Retries: ${stats.retryCount}")
             Log.i(TAG, "Time: ${totalTime}s (${totalMin}min)")
-            Log.i(TAG, "=" .repeat(70))
+            Log.i(TAG, "=".repeat(70))
 
             if (stats.failedItems.isNotEmpty()) {
                 Log.w(TAG, "Failed items:")
                 stats.failedItems.forEach { Log.w(TAG, "  - ${it.name}") }
             }
 
-            // ===== UPDATE UI =====
             withContext(Dispatchers.Main) {
                 isProcessingAll = false
 
@@ -927,7 +861,7 @@ class MainActivity : AppCompatActivity() {
         modelSpinner.isEnabled = true
     }
 
-    // ===== EXISTING FUNCTIONS (UNCHANGED) =====
+    // ===== EXISTING FUNCTIONS =====
 
     private fun getCellValue(cell: Cell?): String {
         if (cell == null) return ""
@@ -1243,7 +1177,8 @@ class MainActivity : AppCompatActivity() {
 
                             Log.i(TAG_METRICS, "Precision: ${String.format("%.4f", metrics.precision)} | " +
                                     "Recall: ${String.format("%.4f", metrics.recall)} | " +
-                                    "F1: ${String.format("%.4f", metrics.f1Score)}")
+                                    "F1: ${String.format("%.4f", metrics.f1Score)} | " +
+                                    "Accuracy: ${String.format("%.4f", metrics.accuracy)}")
                             Log.i(TAG_METRICS, "Exact Match: ${metrics.isExactMatch} | " +
                                     "Hallucination: ${metrics.hasHallucination}")
 
@@ -1263,6 +1198,7 @@ class MainActivity : AppCompatActivity() {
                                 precision = metrics.precision,
                                 recall = metrics.recall,
                                 f1Score = metrics.f1Score,
+                                accuracy = metrics.accuracy,
                                 isExactMatch = metrics.isExactMatch,
                                 hammingLoss = metrics.hammingLoss,
                                 falseNegativeRate = metrics.fnr,
@@ -1402,14 +1338,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveToFirebase(result: PredictionResult) {
-        firestore.collection("predictions")
-            .add(result.toMap())
-            .addOnSuccessListener { documentReference ->
-                Log.i(TAG, "Firebase: Saved ${result.name} as ${documentReference.id}")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val data = hashMapOf<String, Any>(
+                    "dataId" to result.dataId,
+                    "name" to result.name,
+                    "ingredients" to result.ingredients,
+                    "allergensRaw" to result.allergensRaw,
+                    "allergensMapped" to result.allergensMapped,
+                    "predictedAllergens" to result.predictedAllergens,
+                    "modelName" to result.modelName,
+                    "truePositives" to result.truePositives,
+                    "falsePositives" to result.falsePositives,
+                    "falseNegatives" to result.falseNegatives,
+                    "trueNegatives" to result.trueNegatives,
+                    "precision" to result.precision,
+                    "recall" to result.recall,
+                    "f1Score" to result.f1Score,
+                    "accuracy" to result.accuracy,
+                    "isExactMatch" to result.isExactMatch,
+                    "hammingLoss" to result.hammingLoss,
+                    "falseNegativeRate" to result.falseNegativeRate,
+                    "hasHallucination" to result.hasHallucination,
+                    "hallucinatedAllergens" to result.hallucinatedAllergens,
+                    "hasOverPrediction" to result.hasOverPrediction,
+                    "overPredictedAllergens" to result.overPredictedAllergens,
+                    "isAbstentionCase" to result.isAbstentionCase,
+                    "isAbstentionCorrect" to result.isAbstentionCorrect,
+                    "latencyMs" to result.latencyMs,
+                    "ttftMs" to result.ttftMs,
+                    "itps" to result.itps,
+                    "otps" to result.otps,
+                    "oetMs" to result.oetMs,
+                    "totalTimeMs" to result.totalTimeMs,
+                    "javaHeapKb" to result.javaHeapKb,
+                    "nativeHeapKb" to result.nativeHeapKb,
+                    "totalPssKb" to result.totalPssKb,
+                    "deviceModel" to result.deviceModel,
+                    "androidVersion" to result.androidVersion
+                )
+
+                firestore.collection("predictions").add(data).await()
+                Log.i(TAG, "✓ Saved to Firebase: ${result.name}")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ Firebase error: ${e.message}", e)
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Firebase: Failed to save ${result.name}", e)
-            }
+        }
     }
 
     private fun showNotification(title: String, message: String) {
@@ -1441,6 +1416,43 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error unloading model", e)
             }
+        }
+    }
+
+    // ===== SIMPLE RESULTS ADAPTER (NO CUSTOM LAYOUT NEEDED) =====
+    /**
+     * Simple adapter to show results in real-time
+     * Uses Android's built-in simple_list_item_1 layout
+     */
+    inner class SimpleResultsAdapter : RecyclerView.Adapter<SimpleResultsAdapter.ViewHolder>() {
+
+        private val results = mutableListOf<PredictionResult>()
+
+        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val textView: TextView = view.findViewById(android.R.id.text1)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(android.R.layout.simple_list_item_1, parent, false)
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val result = results[position]
+            holder.textView.text = "${result.name}\nF1: ${String.format("%.3f", result.f1Score)} | Acc: ${String.format("%.3f", result.accuracy)}"
+        }
+
+        override fun getItemCount() = results.size
+
+        fun clearResults() {
+            results.clear()
+            notifyDataSetChanged()
+        }
+
+        fun addResult(result: PredictionResult) {
+            results.add(result)
+            notifyItemInserted(results.size - 1)
         }
     }
 }

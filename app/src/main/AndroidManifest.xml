@@ -29,10 +29,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-            <activity
-                android:name=".DashboardActivity"
-                android:label="Performance Dashboard"
-                android:parentActivityName=".MainActivity"/>
+        <activity
+            android:name=".PredictionHistoryActivity"
+            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar" />
+
+        <activity
+            android:name=".EnhancedDashboardActivity"
+            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar" />
 
     </application>
 

@@ -1,19 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
+    <!-- Primary Colors -->
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#0D47A1</color>
+    <color name="primary_light">#BBDEFB</color>
+    <color name="accent">#FF9800</color>
+
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
     <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="teal_700">#FF018786</color>s
 
-    <!-- ADD THESE NEW COLORS FOR THE APP -->
-    <color name="metricText">#666666</color>
-    <color name="cardBackground">#FFFFFF</color>
+    <!-- Background Colors -->
+    <color name="background">#F5F5F5</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#BDBDBD</color>
+
+    <!-- Status Colors -->
+    <color name="success">#4CAF50</color>
+    <color name="success_light">#C8E6C9</color>
+    <color name="success_very_light">#E8F5E9</color>
+
+    <color name="warning">#FF9800</color>
+    <color name="warning_light">#FFE0B2</color>
+    <color name="warning_very_light">#FFF3E0</color>
+
+    <color name="danger">#F44336</color>
+    <color name="danger_light">#FFCDD2</color>
+    <color name="danger_very_light">#FFEBEE</color>
+
+    <!-- Medal Colors -->
+    <color name="gold">#FFD700</color>
+    <color name="gold_light">#FFF9C4</color>
+    <color name="silver">#C0C0C0</color>
+    <color name="silver_light">#F5F5F5</color>
+    <color name="bronze">#CD7F32</color>
+    <color name="bronze_light">#FFE0B2</color>
+
+    <!-- Colors for item_result.xml -->
     <color name="cardBorder">#E0E0E0</color>
+    <color name="cardBackground">#FFFFFF</color>
     <color name="textPrimary">#212121</color>
     <color name="textSecondary">#757575</color>
+    <color name="metricText">#1976D2</color>
+
+    <!-- Other -->
     <color name="divider">#E0E0E0</color>
-    <color name="success">#4CAF50</color>
 </resources>
