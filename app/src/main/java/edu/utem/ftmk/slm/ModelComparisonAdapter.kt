@@ -6,10 +6,13 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Adapter for displaying model comparison statistics
- * UPDATED: Now includes Accuracy metric
+ * UPDATED: Now includes Accuracy metric + Timestamp
  */
 class ModelComparisonAdapter(
     private var models: MutableList<EnhancedDashboardActivity.ModelStatistics>
@@ -20,7 +23,7 @@ class ModelComparisonAdapter(
         val modelName: TextView = view.findViewById(R.id.modelNameText)
         val bestBadge: TextView = view.findViewById(R.id.bestBadge)
         val rankText: TextView = view.findViewById(R.id.rankText)
-        val accuracyText: TextView = view.findViewById(R.id.accuracyText)  // ← NEW
+        val accuracyText: TextView = view.findViewById(R.id.accuracyText)
         val f1Score: TextView = view.findViewById(R.id.f1ScoreText)
         val precision: TextView = view.findViewById(R.id.precisionText)
         val recall: TextView = view.findViewById(R.id.recallText)
@@ -30,6 +33,13 @@ class ModelComparisonAdapter(
         val hallucinationRate: TextView = view.findViewById(R.id.hallucinationRateText)
         val fnrText: TextView = view.findViewById(R.id.fnrText)
         val detailsContainer: View = view.findViewById(R.id.detailsContainer)
+        
+        // NEW: Add timestamp view (if it exists in your layout, otherwise ignore)
+        val timestampText: TextView? = try {
+            view.findViewById(R.id.timestampText)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -56,7 +66,7 @@ class ModelComparisonAdapter(
             holder.card.strokeWidth = 0
         }
 
-        // ✅ NEW: Show Accuracy
+        // Show Accuracy
         holder.accuracyText.text = "Accuracy: ${String.format("%.3f", model.avgAccuracy)} (${String.format("%.1f", model.avgAccuracy * 100)}%)"
 
         // Main metrics
@@ -70,6 +80,12 @@ class ModelComparisonAdapter(
         holder.exactMatchRate.text = "Exact Match: ${String.format("%.1f", model.exactMatchRate * 100)}%"
         holder.hallucinationRate.text = "Hallucination: ${String.format("%.1f", model.hallucinationRate * 100)}%"
         holder.fnrText.text = "FNR: ${String.format("%.3f", model.avgFNR)} (${String.format("%.1f", model.avgFNR * 100)}%)"
+
+        // NEW: Show timestamp if view exists
+        holder.timestampText?.let {
+            val sdf = SimpleDateFormat("🕐 MMM dd, yyyy hh:mm a", Locale.getDefault())
+            it.text = "Updated: ${sdf.format(Date())}"
+        }
 
         // Card color based on ranking
         val cardColor = when (position) {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 /**
  * Activity to display history of all past predictions
  * Shows searchable, filterable list of predictions from Firebase
+ * FIXED: Now uses timestamp instead of latencyMs for sorting newest/oldest
  */
 class PredictionHistoryActivity : AppCompatActivity() {
 
@@ -144,7 +145,7 @@ class PredictionHistoryActivity : AppCompatActivity() {
 
                 val predictions = withContext(Dispatchers.IO) {
                     val snapshot = firestore.collection("predictions")
-                        .orderBy("latencyMs", Query.Direction.DESCENDING)
+                        .orderBy("timestamp", Query.Direction.DESCENDING)  // ✅ FIXED: Use timestamp instead of latencyMs
                         .get()
                         .await()
 
@@ -167,6 +168,7 @@ class PredictionHistoryActivity : AppCompatActivity() {
                                 precision = doc.getDouble("precision") ?: 0.0,
                                 recall = doc.getDouble("recall") ?: 0.0,
                                 f1Score = doc.getDouble("f1Score") ?: 0.0,
+                                accuracy = doc.getDouble("accuracy") ?: 0.0,
                                 isExactMatch = doc.getBoolean("isExactMatch") ?: false,
                                 hammingLoss = doc.getDouble("hammingLoss") ?: 0.0,
                                 falseNegativeRate = doc.getDouble("falseNegativeRate") ?: 0.0,
@@ -190,7 +192,9 @@ class PredictionHistoryActivity : AppCompatActivity() {
                                 totalPssKb = doc.getLong("totalPssKb") ?: 0L,
 
                                 deviceModel = doc.getString("deviceModel") ?: "",
-                                androidVersion = doc.getString("androidVersion") ?: ""
+                                androidVersion = doc.getString("androidVersion") ?: "",
+
+                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()  // ✅ Load timestamp
                             )
                             results.add(result)
                         } catch (e: Exception) {
@@ -260,10 +264,10 @@ class PredictionHistoryActivity : AppCompatActivity() {
             matchesModel && matchesSearch
         }.toMutableList()
 
-        // Sort
+        // ✅ FIXED: Sort using timestamp for newest/oldest
         when (sortOption) {
-            0 -> filteredPredictions.sortByDescending { it.latencyMs } // Newest (highest latency = most recent in our case)
-            1 -> filteredPredictions.sortBy { it.latencyMs } // Oldest
+            0 -> filteredPredictions.sortByDescending { it.timestamp } // Newest First (highest timestamp = most recent)
+            1 -> filteredPredictions.sortBy { it.timestamp } // Oldest First (lowest timestamp = oldest)
             2 -> filteredPredictions.sortByDescending { it.f1Score } // Highest F1
             3 -> filteredPredictions.sortBy { it.f1Score } // Lowest F1
             4 -> filteredPredictions.sortBy { it.name } // A-Z

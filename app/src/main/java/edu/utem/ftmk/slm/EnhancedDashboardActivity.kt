@@ -21,8 +21,8 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Enhanced Dashboard showing accuracy for all models with best model highlighted
- * FIXED VERSION - All errors resolved
+ * Enhanced Dashboard with ALL metrics from Table 2, 3, and 4
+ * Aggregates and compares model performance
  */
 class EnhancedDashboardActivity : AppCompatActivity() {
 
@@ -30,35 +30,73 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         private const val TAG = "ENHANCED_DASHBOARD"
     }
 
+    // Firebase
     private lateinit var firestore: FirebaseFirestore
+    
+    // UI Components
     private lateinit var progressBar: ProgressBar
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
     private lateinit var adapter: ModelComparisonAdapter
+    
+    // Best Model Card
     private lateinit var bestModelCard: MaterialCardView
     private lateinit var bestModelNameText: TextView
     private lateinit var bestModelF1Text: TextView
     private lateinit var bestModelCountText: TextView
+    
+    // Overall Stats Card
     private lateinit var overallStatsCard: MaterialCardView
     private lateinit var totalPredictionsText: TextView
     private lateinit var totalModelsText: TextView
     private lateinit var avgF1AllText: TextView
     private lateinit var bestF1AllText: TextView
+    
+    // Champion Models
+    private lateinit var bestAccuracyModelText: TextView
+    private lateinit var bestAccuracyScoreText: TextView
+    private lateinit var bestModelText: TextView
+    private lateinit var bestF1ScoreText: TextView
+    private lateinit var fastestModelText: TextView
+    private lateinit var fastestLatencyText: TextView
 
+    // Data
     private val modelStats = mutableListOf<ModelStatistics>()
     private var allPredictions = listOf<PredictionResult>()
 
+    /**
+     * Complete ModelStatistics with ALL metrics from Table 2, 3, and 4
+     */
     data class ModelStatistics(
         val modelName: String,
         val predictionCount: Int,
-        val avgF1: Double,
-        val avgAccuracy: Double,  // ← NEW: Accuracy
+        
+        // TABLE 2: Prediction Quality Metrics (AVERAGED)
         val avgPrecision: Double,
         val avgRecall: Double,
-        val avgLatency: Long,
-        val exactMatchRate: Double,
-        val hallucinationRate: Double,
+        val avgF1: Double,
+        val avgAccuracy: Double,
+        val exactMatchRate: Double,      // % of exact matches
+        val avgHammingLoss: Double,
         val avgFNR: Double,
+        
+        // TABLE 3: Safety-Oriented Metrics (RATES)
+        val hallucinationRate: Double,   // % with hallucinations
+        val overPredictionRate: Double,   // % with over-predictions
+        val abstentionAccuracy: Double,   // % correct abstentions
+        
+        // TABLE 4: On-Device Efficiency Metrics (AVERAGED)
+        val avgLatency: Double,
+        val avgTTFT: Double,
+        val avgITPS: Double,
+        val avgOTPS: Double,
+        val avgOET: Double,
+        val avgTotalTime: Double,
+        val avgJavaHeap: Double,
+        val avgNativeHeap: Double,
+        val avgPSS: Double,
+        
+        // Display flag
         val isBest: Boolean = false
     )
 
@@ -74,18 +112,31 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     }
 
     private fun initializeViews() {
+        // Main views
         progressBar = findViewById(R.id.dashboardProgressBar)
         recyclerView = findViewById(R.id.modelComparisonRecyclerView)
         emptyText = findViewById(R.id.emptyText)
+        
+        // Best Model Card
         bestModelCard = findViewById(R.id.bestModelCard)
         bestModelNameText = findViewById(R.id.bestModelNameText)
         bestModelF1Text = findViewById(R.id.bestModelF1Text)
         bestModelCountText = findViewById(R.id.bestModelCountText)
+        
+        // Overall Stats Card
         overallStatsCard = findViewById(R.id.overallStatsCard)
         totalPredictionsText = findViewById(R.id.totalPredictionsText)
         totalModelsText = findViewById(R.id.totalModelsText)
         avgF1AllText = findViewById(R.id.avgF1AllText)
         bestF1AllText = findViewById(R.id.bestF1AllText)
+        
+        // Champion Models
+        bestAccuracyModelText = findViewById(R.id.bestAccuracyModelText)
+        bestAccuracyScoreText = findViewById(R.id.bestAccuracyScoreText)
+        bestModelText = findViewById(R.id.bestModelText)
+        bestF1ScoreText = findViewById(R.id.bestF1ScoreText)
+        fastestModelText = findViewById(R.id.fastestModelText)
+        fastestLatencyText = findViewById(R.id.fastestLatencyText)
 
         // Back button
         findViewById<ImageButton>(R.id.backButton).setOnClickListener {
@@ -120,7 +171,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
 
                 Log.i(TAG, "Loading all predictions from Firebase...")
 
-                // ✅ FIX 1: Specify type explicitly
+                // Load predictions from Firebase
                 allPredictions = withContext(Dispatchers.IO) {
                     val snapshot = firestore.collection("predictions")
                         .get()
@@ -145,7 +196,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                                 precision = doc.getDouble("precision") ?: 0.0,
                                 recall = doc.getDouble("recall") ?: 0.0,
                                 f1Score = doc.getDouble("f1Score") ?: 0.0,
-                                accuracy = doc.getDouble("accuracy") ?: 0.0,  // ← NEW
+                                accuracy = doc.getDouble("accuracy") ?: 0.0,
                                 isExactMatch = doc.getBoolean("isExactMatch") ?: false,
                                 hammingLoss = doc.getDouble("hammingLoss") ?: 0.0,
                                 falseNegativeRate = doc.getDouble("falseNegativeRate") ?: 0.0,
@@ -169,7 +220,9 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                                 totalPssKb = doc.getLong("totalPssKb") ?: 0L,
 
                                 deviceModel = doc.getString("deviceModel") ?: "",
-                                androidVersion = doc.getString("androidVersion") ?: ""
+                                androidVersion = doc.getString("androidVersion") ?: "",
+                                
+                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
                             )
                         } catch (e: Exception) {
                             Log.w(TAG, "Error parsing document: ${e.message}")
@@ -195,6 +248,9 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 // Display best model
                 displayBestModel()
 
+                // Display champion models
+                displayChampionModels()
+
                 progressBar.visibility = View.GONE
                 recyclerView.visibility = View.VISIBLE
                 bestModelCard.visibility = View.VISIBLE
@@ -217,28 +273,70 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         modelStats.clear()
 
         // Calculate stats for each model
-        for ((modelName, predictions) in byModel) {
-            val avgF1 = predictions.map { it.f1Score }.average()
-            val avgAccuracy = predictions.map { it.accuracy }.average()  // ← NEW
-            val avgPrecision = predictions.map { it.precision }.average()
-            val avgRecall = predictions.map { it.recall }.average()
-            val avgLatency = predictions.map { it.latencyMs }.average().toLong()
-            val exactMatchRate = predictions.count { it.isExactMatch }.toDouble() / predictions.size
-            val hallucinationRate = predictions.count { it.hasHallucination }.toDouble() / predictions.size
-            val avgFNR = predictions.map { it.falseNegativeRate }.average()
+        for ((modelName, preds) in byModel) {
+            
+            // TABLE 2: Quality Metrics (AVERAGES)
+            val avgPrecision = preds.map { it.precision }.average()
+            val avgRecall = preds.map { it.recall }.average()
+            val avgF1 = preds.map { it.f1Score }.average()
+            val avgAccuracy = preds.map { it.accuracy }.average()
+            val avgHammingLoss = preds.map { it.hammingLoss }.average()
+            val avgFNR = preds.map { it.falseNegativeRate }.average()
+            val exactMatchRate = preds.count { it.isExactMatch }.toDouble() / preds.size
+            
+            // TABLE 3: Safety Metrics (RATES as percentages)
+            val hallucinationRate = preds.count { it.hasHallucination }.toDouble() / preds.size
+            val overPredictionRate = preds.count { it.hasOverPrediction }.toDouble() / preds.size
+            
+            val abstentionCases = preds.filter { it.isAbstentionCase }
+            val abstentionAccuracy = if (abstentionCases.isNotEmpty()) {
+                abstentionCases.count { it.isAbstentionCorrect }.toDouble() / abstentionCases.size
+            } else {
+                0.0
+            }
+            
+            // TABLE 4: Efficiency Metrics (AVERAGES)
+            val avgLatency = preds.map { it.latencyMs.toDouble() }.average()
+            val avgTTFT = preds.map { it.ttftMs.toDouble() }.average()
+            val avgITPS = preds.map { it.itps.toDouble() }.average()
+            val avgOTPS = preds.map { it.otps.toDouble() }.average()
+            val avgOET = preds.map { it.oetMs.toDouble() }.average()
+            val avgTotalTime = preds.map { it.totalTimeMs.toDouble() }.average()
+            val avgJavaHeap = preds.map { it.javaHeapKb.toDouble() }.average()
+            val avgNativeHeap = preds.map { it.nativeHeapKb.toDouble() }.average()
+            val avgPSS = preds.map { it.totalPssKb.toDouble() }.average()
 
             modelStats.add(
                 ModelStatistics(
                     modelName = modelName,
-                    predictionCount = predictions.size,
-                    avgF1 = avgF1,
-                    avgAccuracy = avgAccuracy,  // ← NEW
+                    predictionCount = preds.size,
+                    
+                    // Table 2
                     avgPrecision = avgPrecision,
                     avgRecall = avgRecall,
-                    avgLatency = avgLatency,
+                    avgF1 = avgF1,
+                    avgAccuracy = avgAccuracy,
                     exactMatchRate = exactMatchRate,
+                    avgHammingLoss = avgHammingLoss,
+                    avgFNR = avgFNR,
+                    
+                    // Table 3
                     hallucinationRate = hallucinationRate,
-                    avgFNR = avgFNR
+                    overPredictionRate = overPredictionRate,
+                    abstentionAccuracy = abstentionAccuracy,
+                    
+                    // Table 4
+                    avgLatency = avgLatency,
+                    avgTTFT = avgTTFT,
+                    avgITPS = avgITPS,
+                    avgOTPS = avgOTPS,
+                    avgOET = avgOET,
+                    avgTotalTime = avgTotalTime,
+                    avgJavaHeap = avgJavaHeap,
+                    avgNativeHeap = avgNativeHeap,
+                    avgPSS = avgPSS,
+                    
+                    isBest = false
                 )
             )
         }
@@ -271,10 +369,33 @@ class EnhancedDashboardActivity : AppCompatActivity() {
 
         bestModelNameText.text = "🏆 ${bestModel.modelName}"
         bestModelF1Text.text = "F1: ${String.format("%.3f", bestModel.avgF1)} (${String.format("%.1f", bestModel.avgF1 * 100)}%)"
-        bestModelCountText.text = "${bestModel.predictionCount} predictions | Avg latency: ${bestModel.avgLatency / 1000}s"
+        bestModelCountText.text = "${bestModel.predictionCount} predictions | Avg latency: ${(bestModel.avgLatency / 1000).toInt()}s"
     }
 
-    // ✅ FIX 2: Create our own export function (simple version)
+    private fun displayChampionModels() {
+        // Best Accuracy Model
+        val bestAccuracyModel = modelStats.maxByOrNull { it.avgAccuracy }
+        bestAccuracyModel?.let {
+            bestAccuracyModelText.text = it.modelName
+            bestAccuracyScoreText.text = "Accuracy: ${String.format("%.3f", it.avgAccuracy)}"
+        }
+
+        // Best F1 Model
+        val bestF1Model = modelStats.maxByOrNull { it.avgF1 }
+        bestF1Model?.let {
+            bestModelText.text = it.modelName
+            bestF1ScoreText.text = "F1: ${String.format("%.3f", it.avgF1)}"
+        }
+
+        // Fastest Model (lowest avg latency)
+        val fastestModel = modelStats.minByOrNull { it.avgLatency }
+        fastestModel?.let {
+            fastestModelText.text = it.modelName
+            val latencySec = it.avgLatency / 1000.0
+            fastestLatencyText.text = "Avg Latency: ${String.format("%.1f", latencySec)}s"
+        }
+    }
+
     private fun exportToExcel() {
         if (allPredictions.isEmpty()) {
             Toast.makeText(this, "No data to export", Toast.LENGTH_SHORT).show()
@@ -289,7 +410,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                     createExcelFile(allPredictions)
                 }
 
-                // ✅ FIX 3 & 4: Use file.name instead of name, file.absolutePath instead of absolutePath
                 Toast.makeText(
                     this@EnhancedDashboardActivity,
                     "✓ Exported to: ${file.name}",
@@ -309,7 +429,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ FIX 2: Simple Excel export function
     private fun createExcelFile(predictions: List<PredictionResult>): File {
         val workbook = XSSFWorkbook()
 
@@ -317,17 +436,23 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val byModel = predictions.groupBy { it.modelName }
 
         for ((modelName, modelPredictions) in byModel) {
-            val sheet = workbook.createSheet(modelName.take(31)) // Excel sheet name limit
+            val sheet = workbook.createSheet(modelName.take(31))
 
-            // Create header row
+            // Create header row with ALL metrics
             val headerRow = sheet.createRow(0)
             val headers = listOf(
+                // Basic
                 "ID", "Name", "Ingredients", "Ground Truth", "Predicted",
+                // Table 2: Quality
                 "TP", "FP", "FN", "TN",
                 "Precision", "Recall", "F1", "Accuracy",
                 "Exact Match", "Hamming Loss", "FNR",
+                // Table 3: Safety
                 "Hallucination", "Over-Prediction",
-                "Latency (ms)", "TTFT (ms)", "Model"
+                // Table 4: Efficiency
+                "Latency (ms)", "TTFT (ms)", "ITPS", "OTPS", "OET (ms)", "Total (ms)",
+                "Java Heap (KB)", "Native Heap (KB)", "PSS (KB)",
+                "Model"
             )
 
             headers.forEachIndexed { index, header ->
@@ -339,31 +464,40 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 val row = sheet.createRow(index + 1)
                 var colIndex = 0
 
+                // Basic
                 row.createCell(colIndex++).setCellValue(result.dataId)
                 row.createCell(colIndex++).setCellValue(result.name)
                 row.createCell(colIndex++).setCellValue(result.ingredients)
                 row.createCell(colIndex++).setCellValue(result.allergensMapped)
                 row.createCell(colIndex++).setCellValue(result.predictedAllergens)
 
+                // Table 2: Quality
                 row.createCell(colIndex++).setCellValue(result.truePositives.toDouble())
                 row.createCell(colIndex++).setCellValue(result.falsePositives.toDouble())
                 row.createCell(colIndex++).setCellValue(result.falseNegatives.toDouble())
                 row.createCell(colIndex++).setCellValue(result.trueNegatives.toDouble())
-
                 row.createCell(colIndex++).setCellValue(result.precision)
                 row.createCell(colIndex++).setCellValue(result.recall)
                 row.createCell(colIndex++).setCellValue(result.f1Score)
                 row.createCell(colIndex++).setCellValue(result.accuracy)
-
                 row.createCell(colIndex++).setCellValue(if (result.isExactMatch) "Yes" else "No")
                 row.createCell(colIndex++).setCellValue(result.hammingLoss)
                 row.createCell(colIndex++).setCellValue(result.falseNegativeRate)
 
+                // Table 3: Safety
                 row.createCell(colIndex++).setCellValue(if (result.hasHallucination) result.hallucinatedAllergens else "No")
                 row.createCell(colIndex++).setCellValue(if (result.hasOverPrediction) result.overPredictedAllergens else "No")
 
+                // Table 4: Efficiency
                 row.createCell(colIndex++).setCellValue(result.latencyMs.toDouble())
                 row.createCell(colIndex++).setCellValue(result.ttftMs.toDouble())
+                row.createCell(colIndex++).setCellValue(result.itps.toDouble())
+                row.createCell(colIndex++).setCellValue(result.otps.toDouble())
+                row.createCell(colIndex++).setCellValue(result.oetMs.toDouble())
+                row.createCell(colIndex++).setCellValue(result.totalTimeMs.toDouble())
+                row.createCell(colIndex++).setCellValue(result.javaHeapKb.toDouble())
+                row.createCell(colIndex++).setCellValue(result.nativeHeapKb.toDouble())
+                row.createCell(colIndex++).setCellValue(result.totalPssKb.toDouble())
                 row.createCell(colIndex++).setCellValue(result.modelName)
             }
         }
@@ -371,7 +505,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         // Save to file
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val timestamp = System.currentTimeMillis()
-        val file = File(downloadsDir, "SLM_Predictions_$timestamp.xlsx")
+        val file = File(downloadsDir, "SLM_All_Metrics_$timestamp.xlsx")
 
         FileOutputStream(file).use { outputStream ->
             workbook.write(outputStream)

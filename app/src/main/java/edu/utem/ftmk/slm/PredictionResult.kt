@@ -1,56 +1,56 @@
 package edu.utem.ftmk.slm
 
 /**
- * Data class representing a single prediction result
- * NOW INCLUDES ACCURACY METRIC!
+ * Complete PredictionResult data class with timestamp
  */
 data class PredictionResult(
-    // Product Information
-    val dataId: String = "",
-    val name: String = "",
-    val ingredients: String = "",
-    val allergensRaw: String = "",
-    val allergensMapped: String = "",
-    val predictedAllergens: String = "",
-    val modelName: String = "",
-
-    // Confusion Matrix
-    val truePositives: Int = 0,
-    val falsePositives: Int = 0,
-    val falseNegatives: Int = 0,
-    val trueNegatives: Int = 0,
-
+    // Basic Info
+    val dataId: String,
+    val name: String,
+    val ingredients: String,
+    val allergensRaw: String,
+    val allergensMapped: String,
+    val predictedAllergens: String,
+    val modelName: String,
+    
     // Quality Metrics
-    val precision: Double = 0.0,
-    val recall: Double = 0.0,
-    val f1Score: Double = 0.0,
-    val accuracy: Double = 0.0,  // ← NEW: ACCURACY METRIC
-    val isExactMatch: Boolean = false,
-    val hammingLoss: Double = 0.0,
-    val falseNegativeRate: Double = 0.0,
-
-    // Safety Metrics
-    val hasHallucination: Boolean = false,
-    val hallucinatedAllergens: String = "",
-    val hasOverPrediction: Boolean = false,
-    val overPredictedAllergens: String = "",
-    val isAbstentionCase: Boolean = false,
-    val isAbstentionCorrect: Boolean = false,
-
+    val truePositives: Int,
+    val falsePositives: Int,
+    val falseNegatives: Int,
+    val trueNegatives: Int,
+    val precision: Double,
+    val recall: Double,
+    val f1Score: Double,
+    val accuracy: Double,
+    val isExactMatch: Boolean,
+    val hammingLoss: Double,
+    val falseNegativeRate: Double,
+    
+    // Error Analysis
+    val hasHallucination: Boolean,
+    val hallucinatedAllergens: String,
+    val hasOverPrediction: Boolean,
+    val overPredictedAllergens: String,
+    val isAbstentionCase: Boolean,
+    val isAbstentionCorrect: Boolean,
+    
     // Performance Metrics
-    val latencyMs: Long = 0L,
-    val ttftMs: Long = 0L,
-    val itps: Long = 0L,
-    val otps: Long = 0L,
-    val oetMs: Long = 0L,
-    val totalTimeMs: Long = 0L,
-
+    val latencyMs: Long,
+    val ttftMs: Long,
+    val itps: Long,
+    val otps: Long,
+    val oetMs: Long,
+    val totalTimeMs: Long,
+    
     // Memory Metrics
-    val javaHeapKb: Long = 0L,
-    val nativeHeapKb: Long = 0L,
-    val totalPssKb: Long = 0L,
-
-    // Device Information
-    val deviceModel: String = "",
-    val androidVersion: String = ""
+    val javaHeapKb: Long,
+    val nativeHeapKb: Long,
+    val totalPssKb: Long,
+    
+    // Device Info
+    val deviceModel: String,
+    val androidVersion: String,
+    
+    // Timestamp (NEW!)
+    val timestamp: Long = System.currentTimeMillis()
 )

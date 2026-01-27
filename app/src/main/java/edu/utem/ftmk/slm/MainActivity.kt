@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultsRecyclerView: RecyclerView
     private lateinit var modelSpinner: Spinner
 
-    private lateinit var resultsAdapter: SimpleResultsAdapter
+    private lateinit var resultsAdapter: ResultsAdapter
 
     private var currentModelName: String = "Qwen 2.5 1.5B"
     private var currentModelFile: String = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
@@ -252,7 +252,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupRecyclerView() {
-        resultsAdapter = SimpleResultsAdapter()  // ✅ FIXED
+        resultsAdapter = ResultsAdapter()  // ✅ FIXED
         resultsRecyclerView.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = resultsAdapter
@@ -1375,7 +1375,8 @@ class MainActivity : AppCompatActivity() {
                     "nativeHeapKb" to result.nativeHeapKb,
                     "totalPssKb" to result.totalPssKb,
                     "deviceModel" to result.deviceModel,
-                    "androidVersion" to result.androidVersion
+                    "androidVersion" to result.androidVersion,
+                    "timestamp" to result.timestamp
                 )
 
                 firestore.collection("predictions").add(data).await()
@@ -1419,40 +1420,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ===== SIMPLE RESULTS ADAPTER (NO CUSTOM LAYOUT NEEDED) =====
-    /**
-     * Simple adapter to show results in real-time
-     * Uses Android's built-in simple_list_item_1 layout
-     */
-    inner class SimpleResultsAdapter : RecyclerView.Adapter<SimpleResultsAdapter.ViewHolder>() {
 
-        private val results = mutableListOf<PredictionResult>()
 
-        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-            val textView: TextView = view.findViewById(android.R.id.text1)
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(android.R.layout.simple_list_item_1, parent, false)
-            return ViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val result = results[position]
-            holder.textView.text = "${result.name}\nF1: ${String.format("%.3f", result.f1Score)} | Acc: ${String.format("%.3f", result.accuracy)}"
-        }
-
-        override fun getItemCount() = results.size
-
-        fun clearResults() {
-            results.clear()
-            notifyDataSetChanged()
-        }
-
-        fun addResult(result: PredictionResult) {
-            results.add(result)
-            notifyItemInserted(results.size - 1)
-        }
-    }
 }

@@ -6,9 +6,13 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Adapter for displaying prediction history in a list
+ * UPDATED: Now includes timestamp
  */
 class PredictionHistoryAdapter(
     private var predictions: MutableList<PredictionResult>
@@ -29,8 +33,14 @@ class PredictionHistoryAdapter(
         val ingredientsText: TextView = view.findViewById(R.id.ingredientsText)
         val confusionMatrix: TextView = view.findViewById(R.id.confusionMatrixText)
         val safetyMetrics: TextView = view.findViewById(R.id.safetyMetricsText)
-
         val accuracy: TextView = view.findViewById(R.id.accuracyText)
+        
+        // NEW: Add timestamp view (if it exists in your layout, otherwise ignore)
+        val timestampText: TextView? = try {
+            view.findViewById(R.id.timestampText)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -54,6 +64,13 @@ class PredictionHistoryAdapter(
         holder.recall.text = "R: ${String.format("%.3f", prediction.recall)}"
         holder.latency.text = "${prediction.latencyMs / 1000}s"
         holder.accuracy.text = "Acc: ${String.format("%.3f", prediction.accuracy)}"
+
+        // NEW: Show timestamp if view exists
+        holder.timestampText?.let {
+            val timestamp = prediction.timestamp
+            val sdf = SimpleDateFormat("🕐 MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
+            it.text = sdf.format(Date(timestamp))
+        }
 
         // Status badge
         when {
@@ -101,7 +118,6 @@ class PredictionHistoryAdapter(
         holder.ingredientsText.text = "Ingredients: ${prediction.ingredients}"
         holder.confusionMatrix.text = buildConfusionMatrixText(prediction)
         holder.safetyMetrics.text = buildSafetyMetricsText(prediction)
-
 
         // Expand/collapse on click
         var isExpanded = false

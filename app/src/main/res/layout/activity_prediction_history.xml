@@ -30,7 +30,7 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Back"
                     android:src="@drawable/ic_arrow_back"
-                    android:tint="@color/white" />
+                    app:tint="@color/white" />
 
                 <TextView
                     android:layout_width="0dp"
@@ -48,7 +48,7 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Refresh"
                     android:src="@drawable/ic_refresh"
-                    android:tint="@color/white" />
+                    app:tint="@color/white" />
             </LinearLayout>
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
