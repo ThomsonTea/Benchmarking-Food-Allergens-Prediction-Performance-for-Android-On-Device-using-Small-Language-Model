@@ -204,6 +204,25 @@ class PredictionHistoryActivity : AppCompatActivity() {
                     results
                 }
 
+                predictions.forEach { prediction ->
+                    Log.d("FIREBASE_LOAD", """
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Loaded: ${prediction.name}
+        Model: ${prediction.modelName}
+        Ground Truth: ${prediction.allergensMapped}
+        Predicted: ${prediction.predictedAllergens}
+        ───────────────────────────────────────────
+        F1 Score: ${prediction.f1Score}
+        Precision: ${prediction.precision}
+        Recall: ${prediction.recall}
+        Accuracy: ${prediction.accuracy}
+        ───────────────────────────────────────────
+        TP=${prediction.truePositives} FP=${prediction.falsePositives}
+        FN=${prediction.falseNegatives} TN=${prediction.trueNegatives}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    """.trimIndent())
+                }
+
                 allPredictions.clear()
                 allPredictions.addAll(predictions)
 

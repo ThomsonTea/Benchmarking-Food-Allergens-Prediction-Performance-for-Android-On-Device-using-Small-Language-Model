@@ -230,6 +230,11 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                         }
                     }
                 }
+                allPredictions.forEach { pred ->
+                    Log.d("DASHBOARD_LOAD", """
+        ${pred.name}: F1=${pred.f1Score}, P=${pred.precision}, R=${pred.recall}
+    """.trimIndent())
+                }
 
                 Log.i(TAG, "✓ Loaded ${allPredictions.size} predictions")
 
@@ -305,6 +310,19 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val avgJavaHeap = preds.map { it.javaHeapKb.toDouble() }.average()
             val avgNativeHeap = preds.map { it.nativeHeapKb.toDouble() }.average()
             val avgPSS = preds.map { it.totalPssKb.toDouble() }.average()
+
+            for ((modelName, stats) in modelStats.withIndex()) {
+                Log.d("DASHBOARD_STATS", """
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Model: ${stats.modelName}
+        Count: ${stats.predictionCount}
+        Avg F1: ${stats.avgF1}
+        Avg Precision: ${stats.avgPrecision}
+        Avg Recall: ${stats.avgRecall}
+        Avg Accuracy: ${stats.avgAccuracy}
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    """.trimIndent())
+            }
 
             modelStats.add(
                 ModelStatistics(

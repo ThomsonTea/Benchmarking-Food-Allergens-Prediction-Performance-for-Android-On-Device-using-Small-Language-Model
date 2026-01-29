@@ -384,7 +384,7 @@
                 android:textColor="@color/metricText"/>
         </LinearLayout>
 
-        <!-- Expandable Details -->
+        <!-- Expandable Details (kept for compatibility) -->
         <LinearLayout
             android:id="@+id/detailsContainer"
             android:layout_width="match_parent"

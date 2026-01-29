@@ -399,7 +399,7 @@
                 android:textColor="@color/metricText"/>
         </LinearLayout>
 
-        <!-- Expandable Details Container -->
+        <!-- Expandable Details Container (kept for compatibility but now shows everything by default) -->
         <LinearLayout
             android:id="@+id/detailsContainer"
             android:layout_width="match_parent"
