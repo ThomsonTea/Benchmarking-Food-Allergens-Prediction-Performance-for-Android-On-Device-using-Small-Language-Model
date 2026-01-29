@@ -2,7 +2,7 @@ package edu.utem.ftmk.slm
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
+
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -35,6 +35,9 @@ import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.tasks.await
+import android.app.ActivityManager
+import android.os.Debug
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.ViewGroup
 
@@ -330,8 +333,45 @@ class MainActivity : AppCompatActivity() {
     // ===== OPTIMAL SOLUTION HELPER FUNCTIONS =====
 
     private fun checkAndManageMemory(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memoryInfo)
 
-        return true
+        val availableSystemRamKb = memoryInfo.availMem / 1024 // Available system memory in KB
+        val currentNativeHeapSizeKb = Debug.getNativeHeapSize() / 1024 // Current app's native heap in KB
+        val currentJavaHeapSizeKb = Runtime.getRuntime().totalMemory() / 1024 // Current app's Java heap in KB
+
+        Log.d(TAG_METRICS, "Memory Status:")
+        Log.d(TAG_METRICS, "  Available System RAM: ${availableSystemRamKb / 1024} MB")
+        Log.d(TAG_METRICS, "  App Native Heap: ${currentNativeHeapSizeKb / 1024} MB")
+        Log.d(TAG_METRICS, "  App Java Heap: ${currentJavaHeapSizeKb / 1024} MB")
+
+        // --- CRITICAL PART: Define your model's required RAM ---
+        // This is an estimate and needs tuning.
+        // A Q4_K_M 1.5B model often needs 1.5GB to 2.5GB of *system* RAM available to load and run comfortably.
+        // For a 1B model, it might be 1GB to 1.8GB.
+        // Start with a high estimate and adjust down if profiling shows you can.
+        val minRequiredFreeSystemRamMb = 1800 // e.g., 1.8 GB for a 1.5B Q4_K_M model
+        val minRequiredFreeSystemRamKb = minRequiredFreeSystemRamMb * 1024
+
+        if (availableSystemRamKb < minRequiredFreeSystemRamKb) {
+            Log.e(TAG, "❌ CRITICAL: Insufficient System RAM.")
+            Log.e(TAG, "   Required: ${minRequiredFreeSystemRamMb} MB, Available: ${availableSystemRamKb / 1024} MB")
+            // Optionally, trigger GC. While it primarily cleans Java heap, it might release some native resources tied to Java objects.
+            System.gc()
+            try { Thread.sleep(500) } catch (e: InterruptedException) { /* ignore */ }
+
+            activityManager.getMemoryInfo(memoryInfo) // Re-check after GC
+            if ((memoryInfo.availMem / 1024) < minRequiredFreeSystemRamKb) {
+                return false // Still critically low after GC
+            }
+        }
+
+        // You could also check if your app's native heap size is growing excessively.
+        // This is harder to define without specific knowledge of your model's runtime footprint.
+        // For now, focusing on system-wide available RAM is usually the main bottleneck.
+
+        return true // Memory seems sufficient
     }
 
     private fun getSafeIngredients(ingredients: String): String {

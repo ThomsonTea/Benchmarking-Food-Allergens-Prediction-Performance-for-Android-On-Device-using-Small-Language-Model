@@ -76,6 +76,12 @@
                         android:layout_marginTop="8dp"
                         android:visibility="gone" />
 
+                    <Spinner
+                        android:id="@+id/modelSpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="8dp"/>
+
                     <Button
                         android:id="@+id/loadModelButton"
                         android:layout_width="wrap_content"
@@ -203,11 +209,6 @@
                         android:text="Choose a set of 10 items to test"
                         android:textSize="12sp"
                         android:textColor="#999999" />
-                    <Spinner
-                        android:id="@+id/modelSpinner"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_margin="8dp"/>
 
                     <Spinner
                         android:id="@+id/datasetSpinner"
