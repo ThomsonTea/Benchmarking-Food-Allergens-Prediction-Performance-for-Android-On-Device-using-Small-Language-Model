@@ -300,15 +300,4 @@
 
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Floating Action Button for Firebase View -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/viewFirebaseFab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:contentDescription="View Firebase Data"
-        android:src="@android:drawable/ic_menu_view"
-        app:tint="@android:color/white" />
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
