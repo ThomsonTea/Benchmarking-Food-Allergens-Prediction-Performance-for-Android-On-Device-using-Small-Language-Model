@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- bg_badge_gold.xml -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/gold" />
-    <corners android:radius="12dp" />
+    <solid android:color="#FFFEF5" />
+    <stroke android:width="2dp" android:color="#FFD700" />
+    <corners android:radius="4dp" />
 </shape>

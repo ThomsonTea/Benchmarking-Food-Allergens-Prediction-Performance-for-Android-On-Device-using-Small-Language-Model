@@ -3,270 +3,104 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background">
+    android:background="#F5F5F5">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <!-- Toolbar -->
-        <com.google.android.material.appbar.AppBarLayout
+        <!-- Header -->
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+            android:layout_marginBottom="16dp">
 
-            <androidx.appcompat.widget.Toolbar
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                android:background="@color/primary">
+            <ImageButton
+                android:id="@+id/backButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentStart="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="Back" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageButton
-                        android:id="@+id/backButton"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Back"
-                        android:src="@drawable/ic_arrow_back"
-                        app:tint="@color/white" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Model Performance Dashboard"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </androidx.appcompat.widget.Toolbar>
-        </com.google.android.material.appbar.AppBarLayout>
-
-        <!-- Champion Models Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            app:strokeWidth="2dp"
-            app:strokeColor="@color/gold">
-
-            <LinearLayout
-                android:layout_width="match_parent"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:background="@color/goldBackground">
+                android:layout_centerInParent="true"
+                android:text="📊 Model Comparison"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#333333" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🏆 Champion Models"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/textPrimary"
-                    android:paddingBottom="16dp"/>
+            <ImageButton
+                android:id="@+id/refreshButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_refresh"
+                android:contentDescription="Refresh" />
+        </RelativeLayout>
 
-                <!-- Best Accuracy Model -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:background="@color/white"
-                    android:layout_marginBottom="8dp">
+        <!-- Loading Progress -->
+        <ProgressBar
+            android:id="@+id/dashboardProgressBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="32dp"
+            android:visibility="gone" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🎯"
-                        android:textSize="32sp"
-                        android:paddingEnd="12dp"/>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Most Accurate Model"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:textStyle="bold"/>
-
-                        <TextView
-                            android:id="@+id/bestAccuracyModelText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Loading..."
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/textPrimary"
-                            android:paddingTop="2dp"/>
-
-                        <TextView
-                            android:id="@+id/bestAccuracyScoreText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Accuracy: 0.000"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/success"
-                            android:paddingTop="4dp"/>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Best F1 Model -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:background="@color/white"
-                    android:layout_marginBottom="8dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🥇"
-                        android:textSize="32sp"
-                        android:paddingEnd="12dp"/>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Best F1 Score"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:textStyle="bold"/>
-
-                        <TextView
-                            android:id="@+id/bestModelText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Loading..."
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/textPrimary"
-                            android:paddingTop="2dp"/>
-
-                        <TextView
-                            android:id="@+id/bestF1ScoreText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="F1: 0.000"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/purple_700"
-                            android:paddingTop="4dp"/>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Fastest Model -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:background="@color/white">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⚡"
-                        android:textSize="32sp"
-                        android:paddingEnd="12dp"/>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Fastest Model"
-                            android:textSize="12sp"
-                            android:textColor="@color/textSecondary"
-                            android:textStyle="bold"/>
-
-                        <TextView
-                            android:id="@+id/fastestModelText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Loading..."
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/textPrimary"
-                            android:paddingTop="2dp"/>
-
-                        <TextView
-                            android:id="@+id/fastestLatencyText"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Avg Latency: 0.0s"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/teal_700"
-                            android:paddingTop="4dp"/>
-                    </LinearLayout>
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        <!-- Empty State -->
+        <TextView
+            android:id="@+id/emptyText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="32dp"
+            android:text="No predictions found.\nRun predictions first."
+            android:textAlignment="center"
+            android:textSize="16sp"
+            android:textColor="#999999"
+            android:visibility="gone" />
 
         <!-- Overall Stats Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/overallStatsCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
             android:layout_marginBottom="16dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="4dp">
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="16dp"
+                android:background="@drawable/bg_gradient_purple">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📊 Overall Statistics"
-                    android:textSize="16sp"
+                    android:text="📈 Overall Statistics"
+                    android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="@color/textPrimary"
-                    android:paddingBottom="12dp"/>
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="12dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:weightSum="2">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:gravity="center"
                         android:orientation="vertical">
 
                         <TextView
@@ -274,78 +108,44 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0 predictions"
-                            android:textColor="@color/textPrimary"
                             android:textSize="16sp"
+                            android:textColor="#FFFFFF"
                             android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Total"
-                            android:textColor="@color/textSecondary"
-                            android:textSize="12sp"
-                            android:paddingTop="4dp"/>
-                    </LinearLayout>
-
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="match_parent"
-                        android:background="@color/divider" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
 
                         <TextView
                             android:id="@+id/totalModelsText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="0 models"
-                            android:textColor="@color/textPrimary"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Models"
-                            android:textColor="@color/textSecondary"
-                            android:textSize="12sp"
-                            android:paddingTop="4dp"/>
+                            android:text="0 models tested"
+                            android:textSize="14sp"
+                            android:textColor="#E0E0E0"
+                            android:layout_marginTop="4dp" />
                     </LinearLayout>
-
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="match_parent"
-                        android:background="@color/divider" />
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
+                        android:orientation="vertical"
+                        android:gravity="end">
 
                         <TextView
                             android:id="@+id/avgF1AllText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="F1: --"
-                            android:textColor="@color/textPrimary"
-                            android:textSize="14sp"
+                            android:text="Avg F1: 0.000"
+                            android:textSize="16sp"
+                            android:textColor="#FFFFFF"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/bestF1AllText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Best: --"
-                            android:textColor="@color/textSecondary"
-                            android:textSize="12sp"
-                            android:paddingTop="4dp"/>
+                            android:text="Best F1: 0.000"
+                            android:textSize="14sp"
+                            android:textColor="#E0E0E0"
+                            android:layout_marginTop="4dp" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
@@ -356,29 +156,27 @@
             android:id="@+id/bestModelCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
             android:layout_marginBottom="16dp"
             app:cardCornerRadius="12dp"
             app:cardElevation="4dp"
-            app:strokeWidth="2dp"
-            app:strokeColor="@color/gold">
+            app:strokeColor="#FFD700"
+            app:strokeWidth="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp"
-                android:background="@color/goldBackground">
+                android:background="#FFFEF5">
 
                 <TextView
                     android:id="@+id/bestModelNameText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="🏆 Best Model"
-                    android:textSize="18sp"
+                    android:textSize="20sp"
                     android:textStyle="bold"
-                    android:textColor="@color/textPrimary"
-                    android:paddingBottom="8dp"/>
+                    android:textColor="#333333" />
 
                 <TextView
                     android:id="@+id/bestModelF1Text"
@@ -386,8 +184,8 @@
                     android:layout_height="wrap_content"
                     android:text="F1: 0.000"
                     android:textSize="16sp"
-                    android:textColor="@color/textPrimary"
-                    android:paddingBottom="4dp"/>
+                    android:textColor="#666666"
+                    android:layout_marginTop="4dp" />
 
                 <TextView
                     android:id="@+id/bestModelCountText"
@@ -395,81 +193,287 @@
                     android:layout_height="wrap_content"
                     android:text="0 predictions"
                     android:textSize="14sp"
-                    android:textColor="@color/textSecondary"/>
+                    android:textColor="#999999"
+                    android:layout_marginTop="4dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- Champion Models Grid -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🏅 Champion Models"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="3"
+            android:layout_marginBottom="24dp">
+
+            <!-- Best Accuracy -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:background="#E8F5E9">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎯 Accuracy"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/bestAccuracyModelText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="14sp"
+                        android:textColor="#333333"
+                        android:textStyle="bold"
+                        android:layout_marginTop="4dp"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/bestAccuracyScoreText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.000"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Best F1 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:background="#FFF3E0">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⭐ F1 Score"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/bestModelText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="14sp"
+                        android:textColor="#333333"
+                        android:textStyle="bold"
+                        android:layout_marginTop="4dp"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/bestF1ScoreText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.000"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Fastest -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:background="#E3F2FD">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ Fastest"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/fastestModelText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="14sp"
+                        android:textColor="#333333"
+                        android:textStyle="bold"
+                        android:layout_marginTop="4dp"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/fastestLatencyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.0s"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- ============================================ -->
+        <!-- TABLE 1: PREDICTION QUALITY METRICS (Table 2) -->
+        <!-- ============================================ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📊 Table 2: Prediction Quality Metrics"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6200EA"
+            android:layout_marginBottom="12dp"
+            android:layout_marginTop="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:id="@+id/qualityTableContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:elevation="2dp">
+                <!-- Table will be built dynamically -->
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- ============================================ -->
+        <!-- TABLE 2: SAFETY METRICS (Table 3) -->
+        <!-- ============================================ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️ Table 3: Safety-Oriented Metrics"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FF5722"
+            android:layout_marginBottom="12dp"
+            android:layout_marginTop="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:id="@+id/safetyTableContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:elevation="2dp">
+                <!-- Table will be built dynamically -->
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- ============================================ -->
+        <!-- TABLE 3: EFFICIENCY METRICS (Table 4) -->
+        <!-- ============================================ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ Table 4: On-Device Efficiency Metrics"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#2196F3"
+            android:layout_marginBottom="12dp"
+            android:layout_marginTop="8dp" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:id="@+id/efficiencyTableContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FFFFFF"
+                android:elevation="2dp">
+                <!-- Table will be built dynamically -->
+            </LinearLayout>
+        </HorizontalScrollView>
 
         <!-- Action Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingBottom="16dp">
+            android:layout_marginTop="16dp"
+            android:weightSum="2">
 
             <Button
                 android:id="@+id/viewHistoryButton"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="56dp"
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
-                android:text="📋 View History"
-                android:textAllCaps="false"/>
+                android:text="📜 View History"
+                android:textSize="16sp"
+                android:backgroundTint="#6200EA" />
 
             <Button
                 android:id="@+id/exportButton"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="56dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:text="📥 Export Excel"
-                android:textAllCaps="false"/>
+                android:textSize="16sp"
+                android:backgroundTint="#00C853" />
         </LinearLayout>
 
-        <!-- Model Comparison Title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="All Models"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/textPrimary"
-            android:paddingHorizontal="16dp"
-            android:paddingBottom="8dp"/>
-
-        <!-- Progress Bar (shown while loading) -->
-        <ProgressBar
-            android:id="@+id/dashboardProgressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginTop="32dp"
-            android:visibility="visible" />
-
-        <!-- Empty State -->
-        <TextView
-            android:id="@+id/emptyText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginTop="32dp"
-            android:gravity="center"
-            android:text="No predictions found"
-            android:textColor="@color/textSecondary"
-            android:textSize="16sp"
-            android:visibility="gone"
-            android:paddingBottom="32dp"/>
-
-        <!-- RecyclerView for model comparison -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/modelComparisonRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="8dp"
-            android:paddingBottom="16dp"
-            android:clipToPadding="false"
-            android:visibility="gone"/>
-
     </LinearLayout>
-
 </ScrollView>

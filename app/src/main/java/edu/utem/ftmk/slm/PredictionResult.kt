@@ -1,8 +1,5 @@
 package edu.utem.ftmk.slm
 
-/**
- * Complete PredictionResult data class with timestamp
- */
 data class PredictionResult(
     // Basic Info
     val dataId: String,
@@ -12,7 +9,7 @@ data class PredictionResult(
     val allergensMapped: String,
     val predictedAllergens: String,
     val modelName: String,
-    
+
     // Quality Metrics
     val truePositives: Int,
     val falsePositives: Int,
@@ -25,15 +22,15 @@ data class PredictionResult(
     val isExactMatch: Boolean,
     val hammingLoss: Double,
     val falseNegativeRate: Double,
-    
-    // Error Analysis
-    val hasHallucination: Boolean,
+
+    // Error Analysis - ✅ CHANGED TO COUNTS
+    val hallucinationCount: Int,  // ✅ Changed from hasHallucination: Boolean
     val hallucinatedAllergens: String,
-    val hasOverPrediction: Boolean,
+    val overPredictionCount: Int,  // ✅ Changed from hasOverPrediction: Boolean
     val overPredictedAllergens: String,
     val isAbstentionCase: Boolean,
     val isAbstentionCorrect: Boolean,
-    
+
     // Performance Metrics
     val latencyMs: Long,
     val ttftMs: Long,
@@ -41,16 +38,16 @@ data class PredictionResult(
     val otps: Long,
     val oetMs: Long,
     val totalTimeMs: Long,
-    
+
     // Memory Metrics
     val javaHeapKb: Long,
     val nativeHeapKb: Long,
     val totalPssKb: Long,
-    
+
     // Device Info
     val deviceModel: String,
     val androidVersion: String,
-    
-    // Timestamp (NEW!)
+
+    // Timestamp
     val timestamp: Long = System.currentTimeMillis()
 )

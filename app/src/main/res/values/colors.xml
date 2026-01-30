@@ -29,6 +29,16 @@
     <color name="warning">#FF9800</color>
     <color name="error">#F44336</color>
     <color name="danger">#F44336</color>
+
+    <!-- Table header colors -->
+    <color name="quality_header">#6200EA</color>   <!-- Purple for Table 2 -->
+    <color name="safety_header">#FF5722</color>    <!-- Orange for Table 3 -->
+    <color name="efficiency_header">#2196F3</color> <!-- Blue for Table 4 -->
+
+    <!-- Table row colors -->
+    <color name="row_even">#FFFFFF</color>
+    <color name="row_odd">#FAFAFA</color>
+
     
     <!-- Champion Models / Medal Colors -->
     <color name="gold">#FFD700</color>

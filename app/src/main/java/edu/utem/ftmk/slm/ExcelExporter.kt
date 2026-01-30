@@ -7,10 +7,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
 
-/**
- * Simple Excel Exporter for prediction results
- * FIXED VERSION - No missing dependencies
- */
 class ExcelExporter(private val context: Context) {
 
     companion object {
@@ -36,8 +32,8 @@ class ExcelExporter(private val context: Context) {
                 "TP", "FP", "FN", "TN",
                 "Precision", "Recall", "F1 Score", "Accuracy",
                 "Exact Match", "Hamming Loss", "FNR",
-                "Has Hallucination", "Hallucinated",
-                "Has Over-Prediction", "Over-Predicted",
+                "Hallucination Count", "Hallucinated Allergens",  // ✅ CHANGED
+                "Over-Prediction Count", "Over-Predicted Allergens",  // ✅ CHANGED
                 "Abstention Case", "Abstention Correct",
                 "Latency (ms)", "TTFT (ms)", "ITPS", "OTPS", "OET (ms)", "Total Time (ms)",
                 "Java Heap (KB)", "Native Heap (KB)", "Total PSS (KB)",
@@ -77,10 +73,10 @@ class ExcelExporter(private val context: Context) {
                 row.createCell(col++).setCellValue(result.hammingLoss)
                 row.createCell(col++).setCellValue(result.falseNegativeRate)
 
-                // Safety metrics
-                row.createCell(col++).setCellValue(if (result.hasHallucination) "Yes" else "No")
+                // Safety metrics - ✅ CHANGED TO NUMBERS
+                row.createCell(col++).setCellValue(result.hallucinationCount.toDouble())  // ✅ NUMBER
                 row.createCell(col++).setCellValue(result.hallucinatedAllergens)
-                row.createCell(col++).setCellValue(if (result.hasOverPrediction) "Yes" else "No")
+                row.createCell(col++).setCellValue(result.overPredictionCount.toDouble())  // ✅ NUMBER
                 row.createCell(col++).setCellValue(result.overPredictedAllergens)
                 row.createCell(col++).setCellValue(if (result.isAbstentionCase) "Yes" else "No")
                 row.createCell(col++).setCellValue(if (result.isAbstentionCorrect) "Yes" else "No")
@@ -112,7 +108,7 @@ class ExcelExporter(private val context: Context) {
         // Save to Downloads folder
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val timestamp = System.currentTimeMillis()
-        val file = File(downloadsDir, "SLM_Results_$timestamp.xlsx")
+        val file = File(downloadsDir, "SLM_All_Metrics_$timestamp.xlsx")
 
         FileOutputStream(file).use { outputStream ->
             workbook.write(outputStream)

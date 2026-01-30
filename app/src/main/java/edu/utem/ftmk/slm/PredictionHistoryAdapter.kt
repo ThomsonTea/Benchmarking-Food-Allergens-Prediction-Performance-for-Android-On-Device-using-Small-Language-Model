@@ -12,8 +12,8 @@ import java.util.Locale
 import android.util.Log
 
 /**
- * Adapter for displaying prediction history in a list
- * UPDATED: Now includes all metrics (Quality, Safety, Efficiency) with proper binding
+ * DEBUG VERSION - Adapter for displaying prediction history in a list
+ * This version has extensive logging to find missing TextViews
  */
 class PredictionHistoryAdapter(
     private var predictions: MutableList<PredictionResult>
@@ -35,16 +35,33 @@ class PredictionHistoryAdapter(
         val hammingLossText: TextView = view.findViewById(R.id.hammingLossText)
         val fnrText: TextView = view.findViewById(R.id.fnrText)
 
-        // Confusion Matrix (individual components)
+        // Confusion Matrix
         val tpText: TextView = view.findViewById(R.id.tpText)
         val fpText: TextView = view.findViewById(R.id.fpText)
         val fnText: TextView = view.findViewById(R.id.fnText)
         val tnText: TextView = view.findViewById(R.id.tnText)
 
-        // Safety Metrics
-        val hallucinationText: TextView = view.findViewById(R.id.hallucinationText)
-        val overPredictionText: TextView = view.findViewById(R.id.overPredictionText)
-        val abstentionText: TextView = view.findViewById(R.id.abstentionText)
+        // Safety Metrics - WITH NULL SAFETY
+        val hallucinationText: TextView? = try {
+            view.findViewById(R.id.hallucinationText)
+        } catch (e: Exception) {
+            Log.e("ADAPTER_ERROR", "hallucinationText not found: ${e.message}")
+            null
+        }
+
+        val overPredictionText: TextView? = try {
+            view.findViewById(R.id.overPredictionText)
+        } catch (e: Exception) {
+            Log.e("ADAPTER_ERROR", "overPredictionText not found: ${e.message}")
+            null
+        }
+
+        val abstentionText: TextView? = try {
+            view.findViewById(R.id.abstentionText)
+        } catch (e: Exception) {
+            Log.e("ADAPTER_ERROR", "abstentionText not found: ${e.message}")
+            null
+        }
 
         // Efficiency Metrics
         val latency: TextView = view.findViewById(R.id.latencyText)
@@ -61,7 +78,6 @@ class PredictionHistoryAdapter(
         val confusionMatrix: TextView = view.findViewById(R.id.confusionMatrixText)
         val safetyMetrics: TextView = view.findViewById(R.id.safetyMetricsText)
 
-        // Timestamp
         val timestampText: TextView? = try {
             view.findViewById(R.id.timestampText)
         } catch (e: Exception) {
@@ -72,23 +88,25 @@ class PredictionHistoryAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_prediction_history, parent, false)
+
+        Log.d("ADAPTER_INFLATE", "✓ Layout inflated successfully")
+
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val prediction = predictions[position]
 
-        // 🔍 DEBUG: Log what we're trying to display
         Log.d("ADAPTER_BIND", """
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         Position: $position
         Name: ${prediction.name}
-        F1: ${prediction.f1Score}
-        Precision: ${prediction.precision}
-        Recall: ${prediction.recall}
-        Accuracy: ${prediction.accuracy}
+        Hallucination Count: ${prediction.hallucinationCount}
+        hallucinationText exists: ${holder.hallucinationText != null}
+        overPredictionText exists: ${holder.overPredictionText != null}
+        abstentionText exists: ${holder.abstentionText != null}
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    """.trimIndent())
+        """.trimIndent())
 
         // Basic info
         holder.productName.text = prediction.name
@@ -106,29 +124,49 @@ class PredictionHistoryAdapter(
         holder.hammingLossText.text = "HL: ${String.format("%.3f", prediction.hammingLoss)}"
         holder.fnrText.text = "FNR: ${String.format("%.3f", prediction.falseNegativeRate)}"
 
-        // Confusion Matrix (individual components)
+        // Confusion Matrix
         holder.tpText.text = "TP: ${prediction.truePositives}"
         holder.fpText.text = "FP: ${prediction.falsePositives}"
         holder.fnText.text = "FN: ${prediction.falseNegatives}"
         holder.tnText.text = "TN: ${prediction.trueNegatives}"
 
-        // === SAFETY METRICS (Table 3) ===
-        holder.hallucinationText.text = if (prediction.hasHallucination) {
-            "Hallucination: Yes (${prediction.hallucinatedAllergens})"
-        } else {
-            "Hallucination: No"
-        }
+        // === SAFETY METRICS (Table 3) - WITH NULL CHECKS ===
+        try {
+            if (holder.hallucinationText != null) {
+                holder.hallucinationText.text = if (prediction.hallucinationCount > 0) {
+                    "Hallucination: Yes (${prediction.hallucinationCount} - ${prediction.hallucinatedAllergens})"
+                } else {
+                    "Hallucination: No"
+                }
+                Log.d("ADAPTER_BIND", "✓ Set hallucinationText successfully")
+            } else {
+                Log.e("ADAPTER_ERROR", "❌ hallucinationText is NULL!")
+            }
 
-        holder.overPredictionText.text = if (prediction.hasOverPrediction) {
-            "Over-Prediction: Yes (${prediction.overPredictedAllergens})"
-        } else {
-            "Over-Prediction: No"
-        }
+            if (holder.overPredictionText != null) {
+                holder.overPredictionText.text = if (prediction.overPredictionCount > 0) {
+                    "Over-Prediction: Yes (${prediction.overPredictionCount} - ${prediction.overPredictedAllergens})"
+                } else {
+                    "Over-Prediction: No"
+                }
+                Log.d("ADAPTER_BIND", "✓ Set overPredictionText successfully")
+            } else {
+                Log.e("ADAPTER_ERROR", "❌ overPredictionText is NULL!")
+            }
 
-        holder.abstentionText.text = when {
-            prediction.isAbstentionCase && prediction.isAbstentionCorrect -> "Abstention: ✓ Correct"
-            prediction.isAbstentionCase && !prediction.isAbstentionCorrect -> "Abstention: ✗ Wrong"
-            else -> "Abstention: N/A"
+            if (holder.abstentionText != null) {
+                holder.abstentionText.text = when {
+                    prediction.isAbstentionCase && prediction.isAbstentionCorrect -> "Abstention: ✓ Correct"
+                    prediction.isAbstentionCase && !prediction.isAbstentionCorrect -> "Abstention: ✗ Wrong"
+                    else -> "Abstention: N/A"
+                }
+                Log.d("ADAPTER_BIND", "✓ Set abstentionText successfully")
+            } else {
+                Log.e("ADAPTER_ERROR", "❌ abstentionText is NULL!")
+            }
+        } catch (e: Exception) {
+            Log.e("ADAPTER_ERROR", "Error setting safety metrics: ${e.message}")
+            e.printStackTrace()
         }
 
         // === EFFICIENCY METRICS (Table 4) ===
@@ -139,15 +177,14 @@ class PredictionHistoryAdapter(
         holder.oetText.text = "OET: ${prediction.oetMs}ms"
         holder.totalTimeText.text = "Tot: ${prediction.totalTimeMs}ms"
 
-        // Memory (combined display)
         val totalMemoryMB = (prediction.javaHeapKb + prediction.nativeHeapKb + prediction.totalPssKb) / 1024
         holder.memoryText.text = "Mem: ${totalMemoryMB}MB"
 
         // Timestamp
         holder.timestampText?.let {
             val timestamp = prediction.timestamp
-            val sdf = SimpleDateFormat("🕐 MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
-            it.text = sdf.format(Date(timestamp))
+            val sdf = SimpleDateFormat("MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
+            it.text = "🕐 ${sdf.format(Date(timestamp))}"
         }
 
         // Status badge
@@ -157,7 +194,7 @@ class PredictionHistoryAdapter(
                 holder.statusBadge.setBackgroundResource(R.drawable.bg_badge_success)
                 holder.statusBadge.visibility = View.VISIBLE
             }
-            prediction.hasHallucination -> {
+            prediction.hallucinationCount > 0 -> {
                 holder.statusBadge.text = "⚠ HALLUCINATION"
                 holder.statusBadge.setBackgroundResource(R.drawable.bg_badge_danger)
                 holder.statusBadge.visibility = View.VISIBLE
@@ -172,17 +209,12 @@ class PredictionHistoryAdapter(
                 holder.statusBadge.setBackgroundResource(R.drawable.bg_badge_success)
                 holder.statusBadge.visibility = View.VISIBLE
             }
-            prediction.accuracy >= 80.0 -> {
-                holder.statusBadge.text = "✓ GOOD"
-                holder.statusBadge.setBackgroundResource(R.drawable.bg_badge_success)
-                holder.statusBadge.visibility = View.VISIBLE
-            }
             else -> {
                 holder.statusBadge.visibility = View.GONE
             }
         }
 
-        // Card color based on quality
+        // Card color
         val cardColor = when {
             prediction.isExactMatch -> R.color.success_light
             prediction.f1Score >= 0.8 -> R.color.success_very_light
@@ -191,7 +223,7 @@ class PredictionHistoryAdapter(
         }
         holder.card.setCardBackgroundColor(holder.itemView.context.getColor(cardColor))
 
-        // Details (initially hidden, for expandable content)
+        // Details (initially hidden)
         holder.detailsContainer.visibility = View.GONE
         holder.ingredientsText.text = "Ingredients: ${prediction.ingredients}"
         holder.confusionMatrix.text = buildConfusionMatrixText(prediction)
@@ -224,12 +256,12 @@ class PredictionHistoryAdapter(
     private fun buildSafetyMetricsText(prediction: PredictionResult): String {
         val parts = mutableListOf<String>()
 
-        if (prediction.hasHallucination) {
-            parts.add("⚠️ Hallucination: ${prediction.hallucinatedAllergens}")
+        if (prediction.hallucinationCount > 0) {
+            parts.add("⚠️ Hallucination (${prediction.hallucinationCount}): ${prediction.hallucinatedAllergens}")
         }
 
-        if (prediction.hasOverPrediction) {
-            parts.add("⚠️ Over-predicted: ${prediction.overPredictedAllergens}")
+        if (prediction.overPredictionCount > 0) {
+            parts.add("⚠️ Over-predicted (${prediction.overPredictionCount}): ${prediction.overPredictedAllergens}")
         }
 
         if (prediction.isAbstentionCase) {

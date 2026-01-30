@@ -173,9 +173,9 @@ class PredictionHistoryActivity : AppCompatActivity() {
                                 hammingLoss = doc.getDouble("hammingLoss") ?: 0.0,
                                 falseNegativeRate = doc.getDouble("falseNegativeRate") ?: 0.0,
 
-                                hasHallucination = doc.getBoolean("hasHallucination") ?: false,
+                                hallucinationCount = doc.getLong("hallucinationCount")?.toInt() ?: 0,
                                 hallucinatedAllergens = doc.getString("hallucinatedAllergens") ?: "",
-                                hasOverPrediction = doc.getBoolean("hasOverPrediction") ?: false,
+                                overPredictionCount = doc.getLong("overPredictionCount")?.toInt() ?: 0,
                                 overPredictedAllergens = doc.getString("overPredictedAllergens") ?: "",
                                 isAbstentionCase = doc.getBoolean("isAbstentionCase") ?: false,
                                 isAbstentionCorrect = doc.getBoolean("isAbstentionCorrect") ?: false,

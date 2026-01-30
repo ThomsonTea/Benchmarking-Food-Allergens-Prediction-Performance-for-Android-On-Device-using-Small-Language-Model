@@ -35,9 +35,9 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     
     // UI Components
     private lateinit var progressBar: ProgressBar
-    private lateinit var recyclerView: RecyclerView
+   // private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
-    private lateinit var adapter: ModelComparisonAdapter
+   // private lateinit var adapter: ModelComparisonAdapter
     
     // Best Model Card
     private lateinit var bestModelCard: MaterialCardView
@@ -107,14 +107,14 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         firestore = FirebaseFirestore.getInstance()
 
         initializeViews()
-        setupRecyclerView()
+        //setupRecyclerView()
         loadAllPredictions()
     }
 
     private fun initializeViews() {
         // Main views
         progressBar = findViewById(R.id.dashboardProgressBar)
-        recyclerView = findViewById(R.id.modelComparisonRecyclerView)
+        //recyclerView = findViewById(R.id.modelComparisonRecyclerView)
         emptyText = findViewById(R.id.emptyText)
         
         // Best Model Card
@@ -154,17 +154,17 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupRecyclerView() {
+   /* private fun setupRecyclerView() {
         adapter = ModelComparisonAdapter(modelStats)
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
-    }
+    }*/
 
     private fun loadAllPredictions() {
         lifecycleScope.launch {
             try {
                 progressBar.visibility = View.VISIBLE
-                recyclerView.visibility = View.GONE
+               // recyclerView.visibility = View.GONE
                 emptyText.visibility = View.GONE
                 bestModelCard.visibility = View.GONE
                 overallStatsCard.visibility = View.GONE
@@ -201,9 +201,9 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                                 hammingLoss = doc.getDouble("hammingLoss") ?: 0.0,
                                 falseNegativeRate = doc.getDouble("falseNegativeRate") ?: 0.0,
 
-                                hasHallucination = doc.getBoolean("hasHallucination") ?: false,
+                                hallucinationCount = doc.getLong("hallucinationCount")?.toInt() ?: 0,
                                 hallucinatedAllergens = doc.getString("hallucinatedAllergens") ?: "",
-                                hasOverPrediction = doc.getBoolean("hasOverPrediction") ?: false,
+                                overPredictionCount = doc.getLong("overPredictionCount")?.toInt() ?: 0,
                                 overPredictedAllergens = doc.getString("overPredictedAllergens") ?: "",
                                 isAbstentionCase = doc.getBoolean("isAbstentionCase") ?: false,
                                 isAbstentionCorrect = doc.getBoolean("isAbstentionCorrect") ?: false,
@@ -257,7 +257,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 displayChampionModels()
 
                 progressBar.visibility = View.GONE
-                recyclerView.visibility = View.VISIBLE
+              //  recyclerView.visibility = View.VISIBLE
                 bestModelCard.visibility = View.VISIBLE
                 overallStatsCard.visibility = View.VISIBLE
 
@@ -290,8 +290,8 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val exactMatchRate = preds.count { it.isExactMatch }.toDouble() / preds.size
             
             // TABLE 3: Safety Metrics (RATES as percentages)
-            val hallucinationRate = preds.count { it.hasHallucination }.toDouble() / preds.size
-            val overPredictionRate = preds.count { it.hasOverPrediction }.toDouble() / preds.size
+            val hallucinationRate = preds.count { it.hallucinationCount > 0 }.toDouble() / preds.size
+            val overPredictionRate = preds.count { it.overPredictionCount > 0 }.toDouble() / preds.size
             
             val abstentionCases = preds.filter { it.isAbstentionCase }
             val abstentionAccuracy = if (abstentionCases.isNotEmpty()) {
@@ -368,7 +368,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         }
 
         // Update adapter
-        adapter.updateData(modelStats)
+        build3SeparateTables()
     }
 
     private fun displayOverallStats() {
@@ -380,6 +380,277 @@ class EnhancedDashboardActivity : AppCompatActivity() {
 
         val bestF1 = modelStats.maxByOrNull { it.avgF1 }?.avgF1 ?: 0.0
         bestF1AllText.text = "Best F1: ${String.format("%.3f", bestF1)}"
+    }
+
+    // Add these methods to EnhancedDashboardActivity.kt
+
+    private fun build3SeparateTables() {
+        buildQualityMetricsTable()
+        buildSafetyMetricsTable()
+        buildEfficiencyMetricsTable()
+    }
+
+    // ============================================
+// TABLE 1: PREDICTION QUALITY METRICS (Table 2)
+// ============================================
+    private fun buildQualityMetricsTable() {
+        val container = findViewById<LinearLayout>(R.id.qualityTableContainer)
+        container.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+
+        // Header Row
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundColor(getColor(R.color.quality_header))  // Purple
+            setPadding(0, 12, 0, 12)
+        }
+
+        headerRow.addView(createHeaderCell("Model Name", 200))
+        headerRow.addView(createDivider())
+        headerRow.addView(createHeaderCell("F1 Score", 90))
+        headerRow.addView(createHeaderCell("Precision", 90))
+        headerRow.addView(createHeaderCell("Recall", 90))
+        headerRow.addView(createHeaderCell("Accuracy", 90))
+        headerRow.addView(createHeaderCell("EMR", 80))
+        headerRow.addView(createHeaderCell("Hamming\nLoss", 90))
+        headerRow.addView(createHeaderCell("FNR", 80))
+
+        container.addView(headerRow)
+        container.addView(createHorizontalDivider())
+
+        // Data Rows
+        for ((index, model) in modelStats.withIndex()) {
+            val dataRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+                setBackgroundColor(getColor(bgColor))
+                setPadding(0, 16, 0, 16)
+            }
+
+            // Model Name
+            dataRow.addView(createModelNameCell(model.modelName, 200))
+            dataRow.addView(createDivider())
+
+            // Quality Metrics
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgF1), 90, "#6200EA", bold = true))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgPrecision), 90))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgRecall), 90))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgAccuracy), 90))
+            dataRow.addView(createDataCell("${(model.exactMatchRate * 100).toInt()}%", 80))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgHammingLoss), 90))
+            dataRow.addView(createDataCell("${(model.avgFNR * 100).toInt()}%", 80, "#F44336"))
+
+            container.addView(dataRow)
+            container.addView(createHorizontalDivider())
+        }
+    }
+
+    // ============================================
+// TABLE 2: SAFETY METRICS (Table 3)
+// ============================================
+    private fun buildSafetyMetricsTable() {
+        val container = findViewById<LinearLayout>(R.id.safetyTableContainer)
+        container.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+
+        // Header Row
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundColor(getColor(R.color.safety_header))  // Orange
+            setPadding(0, 12, 0, 12)
+        }
+
+        headerRow.addView(createHeaderCell("Model Name", 200))
+        headerRow.addView(createDivider())
+        headerRow.addView(createHeaderCell("Hallucination\nRate", 120))
+        headerRow.addView(createHeaderCell("Over-Prediction\nRate", 130))
+        headerRow.addView(createHeaderCell("Abstention\nAccuracy", 120))
+
+        container.addView(headerRow)
+        container.addView(createHorizontalDivider())
+
+        // Data Rows
+        for ((index, model) in modelStats.withIndex()) {
+            val dataRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+                setBackgroundColor(getColor(bgColor))
+                setPadding(0, 16, 0, 16)
+            }
+
+            // Model Name
+            dataRow.addView(createModelNameCell(model.modelName, 200))
+            dataRow.addView(createDivider())
+
+            // Safety Metrics
+            dataRow.addView(createDataCell("${(model.hallucinationRate * 100).toInt()}%", 120, "#F44336", bold = true))
+            dataRow.addView(createDataCell("${(model.overPredictionRate * 100).toInt()}%", 130, "#FF9800", bold = true))
+            dataRow.addView(createDataCell("${(model.abstentionAccuracy * 100).toInt()}%", 120, "#4CAF50", bold = true))
+
+            container.addView(dataRow)
+            container.addView(createHorizontalDivider())
+        }
+    }
+
+    // ============================================
+// TABLE 3: EFFICIENCY METRICS (Table 4)
+// ============================================
+    private fun buildEfficiencyMetricsTable() {
+        val container = findViewById<LinearLayout>(R.id.efficiencyTableContainer)
+        container.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+
+        // Header Row
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundColor(getColor(R.color.efficiency_header))  // Blue
+            setPadding(0, 12, 0, 12)
+        }
+
+        headerRow.addView(createHeaderCell("Model Name", 200))
+        headerRow.addView(createDivider())
+        headerRow.addView(createHeaderCell("Avg\nLatency", 90))
+        headerRow.addView(createHeaderCell("TTFT", 90))
+        headerRow.addView(createHeaderCell("ITPS", 80))
+        headerRow.addView(createHeaderCell("OTPS", 80))
+        headerRow.addView(createHeaderCell("OET", 90))
+        headerRow.addView(createHeaderCell("Total\nTime", 90))
+        headerRow.addView(createHeaderCell("Java\nHeap", 90))
+        headerRow.addView(createHeaderCell("Native\nHeap", 90))
+        headerRow.addView(createHeaderCell("PSS", 90))
+
+        container.addView(headerRow)
+        container.addView(createHorizontalDivider())
+
+        // Data Rows
+        for ((index, model) in modelStats.withIndex()) {
+            val dataRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+                setBackgroundColor(getColor(bgColor))
+                setPadding(0, 16, 0, 16)
+            }
+
+            // Model Name
+            dataRow.addView(createModelNameCell(model.modelName, 200))
+            dataRow.addView(createDivider())
+
+            // Efficiency Metrics
+            dataRow.addView(createDataCell("${(model.avgLatency / 1000).toInt()}s", 90, "#2196F3", bold = true))
+            dataRow.addView(createDataCell("${model.avgTTFT.toInt()}ms", 90))
+            dataRow.addView(createDataCell("${model.avgITPS.toInt()}", 80))
+            dataRow.addView(createDataCell("${model.avgOTPS.toInt()}", 80))
+            dataRow.addView(createDataCell("${model.avgOET.toInt()}ms", 90))
+            dataRow.addView(createDataCell("${model.avgTotalTime.toInt()}ms", 90))
+
+            val javaMB = (model.avgJavaHeap / 1024).toInt()
+            val nativeMB = (model.avgNativeHeap / 1024).toInt()
+            val pssMB = (model.avgPSS / 1024).toInt()
+
+            dataRow.addView(createDataCell("${javaMB}MB", 90))
+            dataRow.addView(createDataCell("${nativeMB}MB", 90))
+            dataRow.addView(createDataCell("${pssMB}MB", 90))
+
+            container.addView(dataRow)
+            container.addView(createHorizontalDivider())
+        }
+    }
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+    private fun createHeaderCell(text: String, widthDp: Int): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(12, 0, 12, 0)
+            textSize = 13f
+            setTextColor(getColor(R.color.white))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+        }
+    }
+
+    private fun createModelNameCell(text: String, widthDp: Int): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(12, 0, 12, 0)
+            textSize = 14f
+            setTextColor(getColor(R.color.text_primary))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+        }
+    }
+
+    private fun createDataCell(
+        text: String,
+        widthDp: Int,
+        colorHex: String? = null,
+        bold: Boolean = false
+    ): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(12, 0, 12, 0)
+            textSize = 13f
+            val color = if (colorHex != null) {
+                android.graphics.Color.parseColor(colorHex)
+            } else {
+                getColor(R.color.text_primary)
+            }
+            setTextColor(color)
+            if (bold) {
+                setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+            gravity = android.view.Gravity.CENTER
+        }
+    }
+
+    private fun createDivider(): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(2), LinearLayout.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(getColor(R.color.divider))
+        }
+    }
+
+    private fun createHorizontalDivider(): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
+            setBackgroundColor(getColor(R.color.divider))
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 
     private fun displayBestModel() {
@@ -503,9 +774,8 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 row.createCell(colIndex++).setCellValue(result.falseNegativeRate)
 
                 // Table 3: Safety
-                row.createCell(colIndex++).setCellValue(if (result.hasHallucination) result.hallucinatedAllergens else "No")
-                row.createCell(colIndex++).setCellValue(if (result.hasOverPrediction) result.overPredictedAllergens else "No")
-
+                row.createCell(colIndex++).setCellValue(result.hallucinationCount.toDouble())
+                row.createCell(colIndex++).setCellValue(result.overPredictionCount.toDouble())
                 // Table 4: Efficiency
                 row.createCell(colIndex++).setCellValue(result.latencyMs.toDouble())
                 row.createCell(colIndex++).setCellValue(result.ttftMs.toDouble())

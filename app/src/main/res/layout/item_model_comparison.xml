@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/modelCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
+    android:layout_marginBottom="12dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
-    app:strokeWidth="2dp"
-    app:strokeColor="@color/cardBorder">
+    app:cardElevation="3dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="#E0E0E0">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -16,392 +15,625 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header: Rank + Model Name + Best Badge -->
+        <!-- Model Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingBottom="8dp">
+            android:layout_marginBottom="12dp">
 
-            <!-- Rank Badge -->
             <TextView
                 android:id="@+id/rankText"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:gravity="center"
                 android:text="#1"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                android:textColor="@color/white"
-                android:background="@color/purple_500"
-                android:gravity="center"
-                android:layout_marginEnd="10dp"/>
+                android:textColor="#FFFFFF"
+                android:background="@drawable/bg_rank_circle" />
 
-            <!-- Model Name + Prediction Count -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:layout_marginStart="12dp">
 
                 <TextView
                     android:id="@+id/modelNameText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Qwen 2.5 1.5B"
-                    android:textSize="15sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="@color/textPrimary"/>
+                    android:textColor="#333333" />
 
                 <TextView
                     android:id="@+id/predictionCountText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="200 predictions"
-                    android:textSize="10sp"
-                    android:textColor="@color/textSecondary"
-                    android:paddingTop="2dp"/>
+                    android:textSize="14sp"
+                    android:textColor="#999999"
+                    android:layout_marginTop="2dp" />
             </LinearLayout>
 
-            <!-- Best Badge -->
             <TextView
                 android:id="@+id/bestBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🏆 BEST"
-                android:textSize="11sp"
+                android:textSize="12sp"
                 android:textStyle="bold"
-                android:textColor="@color/gold"
-                android:visibility="gone"/>
+                android:textColor="#FFD700"
+                android:padding="6dp"
+                android:background="@drawable/bg_badge_gold"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- TABLE 2: Prediction Quality Metrics -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📊 Prediction Quality (Table 2)"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#6200EA"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_rounded_light_purple"
+            android:padding="12dp">
+
+            <!-- Row 1: F1, Precision, Recall -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="3">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="F1 Score"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/f1Text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.856"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#6200EA"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Precision"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/precisionText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.921"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Recall"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/recallText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.800"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 2: Accuracy, EMR, Hamming Loss -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginVertical="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="3">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Accuracy"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/accuracyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.934"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="EMR"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/emrText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="72%"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="H-Loss"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/hammingLossText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.067"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 3: FNR -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginVertical="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="False Negative Rate: "
+                    android:textSize="12sp"
+                    android:textColor="#666666" />
+
+                <TextView
+                    android:id="@+id/fnrText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="10%"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#F44336" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- TABLE 3: Safety-Oriented Metrics -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️ Safety Metrics (Table 3)"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FF5722"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_rounded_light_orange"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="3">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Hallucination"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/hallucinationRateText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="12%"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#F44336"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Over-Pred"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/overPredictionRateText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="18%"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#FF9800"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Abstention"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/abstentionAccuracyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="90%"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#4CAF50"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- TABLE 4: On-Device Efficiency Metrics -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ Efficiency Metrics (Table 4)"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#2196F3"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_rounded_light_blue"
+            android:padding="12dp">
+
+            <!-- Row 1: Latency, TTFT -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Avg Latency"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/latencyText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="14.3s"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#2196F3"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TTFT"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/ttftText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="10775ms"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 2: ITPS, OTPS -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginVertical="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ITPS"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/itpsText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="14"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OTPS"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/otpsText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row 3: Memory -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginVertical="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:weightSum="3">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Java"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/javaHeapText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0MB"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Native"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/nativeHeapText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1MB"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="PSS"
+                        android:textSize="11sp"
+                        android:textColor="#666666" />
+
+                    <TextView
+                        android:id="@+id/pssText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="15MB"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#333333"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Timestamp -->
         <TextView
             android:id="@+id/timestampText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🕐 Updated: Jan 27, 2026"
-            android:textSize="9sp"
-            android:textColor="@color/textSecondary"
-            android:textStyle="italic"
-            android:paddingBottom="10dp"/>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider"
-            android:layout_marginBottom="10dp"/>
-
-        <!-- PREDICTION QUALITY METRICS (Table 2) - AGGREGATED -->
-        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📊 Avg Quality Metrics (Table 2)"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:textColor="@color/purple_700"
-            android:paddingBottom="6dp"/>
-
-        <!-- Row 1: Accuracy + F1 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="4dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Accuracy"
-                    android:textSize="9sp"
-                    android:textColor="@color/textSecondary"/>
-
-                <TextView
-                    android:id="@+id/accuracyText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0.000"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/success"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="F1 Score"
-                    android:textSize="9sp"
-                    android:textColor="@color/textSecondary"/>
-
-                <TextView
-                    android:id="@+id/f1ScoreText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0.000"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/purple_700"/>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Row 2: Precision + Recall -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="4dp">
-
-            <TextView
-                android:id="@+id/precisionText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="P: 0.000"
-                android:textSize="11sp"
-                android:textColor="@color/textPrimary"/>
-
-            <TextView
-                android:id="@+id/recallText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="R: 0.000"
-                android:textSize="11sp"
-                android:textColor="@color/textPrimary"/>
-        </LinearLayout>
-
-        <!-- Row 3: Exact Match Rate + Hamming Loss + FNR -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:id="@+id/exactMatchRateText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="EMR: 0.0%"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"/>
-
-            <TextView
-                android:id="@+id/hammingLossText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="HL: 0.000"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"/>
-
-            <TextView
-                android:id="@+id/fnrText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="FNR: 0.0%"
-                android:textSize="10sp"
-                android:textColor="@color/warning"/>
-        </LinearLayout>
-
-        <!-- SAFETY METRICS (Table 3) - AGGREGATED RATES -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🛡️ Safety Rates (Table 3)"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:textColor="@color/error"
-            android:paddingTop="4dp"
-            android:paddingBottom="6dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:id="@+id/hallucinationRateText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Hallucination: 0.0%"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"/>
-
-            <TextView
-                android:id="@+id/overPredictionRateText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Over-Pred: 0.0%"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"/>
-
-            <TextView
-                android:id="@+id/abstentionAccText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Abst: 0.0%"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"/>
-        </LinearLayout>
-
-        <!-- ON-DEVICE EFFICIENCY METRICS (Table 4) - AGGREGATED -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="⚡ Avg Efficiency (Table 4)"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:textColor="@color/teal_700"
-            android:paddingTop="4dp"
-            android:paddingBottom="6dp"/>
-
-        <!-- Row 1: Latency + TTFT -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="3dp">
-
-            <TextView
-                android:id="@+id/latencyText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="⏱ 0.0s avg"
-                android:textSize="11sp"
-                android:textColor="@color/metricText"/>
-
-            <TextView
-                android:id="@+id/ttftText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="TTFT: 0ms"
-                android:textSize="10sp"
-                android:textColor="@color/metricText"/>
-        </LinearLayout>
-
-        <!-- Row 2: ITPS + OTPS -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="3dp">
-
-            <TextView
-                android:id="@+id/itpsText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="ITPS: 0"
-                android:textSize="10sp"
-                android:textColor="@color/metricText"/>
-
-            <TextView
-                android:id="@+id/otpsText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="OTPS: 0"
-                android:textSize="10sp"
-                android:textColor="@color/metricText"/>
-        </LinearLayout>
-
-        <!-- Row 3: OET + Total Time -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="3dp">
-
-            <TextView
-                android:id="@+id/oetText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="OET: 0ms"
-                android:textSize="10sp"
-                android:textColor="@color/metricText"/>
-
-            <TextView
-                android:id="@+id/totalTimeText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Total: 0ms"
-                android:textSize="10sp"
-                android:textColor="@color/metricText"/>
-        </LinearLayout>
-
-        <!-- Row 4: Memory (Java + Native + PSS) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/javaHeapText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Java: 0MB"
-                android:textSize="9sp"
-                android:textColor="@color/metricText"/>
-
-            <TextView
-                android:id="@+id/nativeHeapText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Native: 0MB"
-                android:textSize="9sp"
-                android:textColor="@color/metricText"/>
-
-            <TextView
-                android:id="@+id/pssText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="PSS: 0MB"
-                android:textSize="9sp"
-                android:textColor="@color/metricText"/>
-        </LinearLayout>
-
-        <!-- Expandable Details (kept for compatibility) -->
-        <LinearLayout
-            android:id="@+id/detailsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="12dp"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📊 Click to expand for detailed statistics"
-                android:textSize="10sp"
-                android:textColor="@color/textSecondary"
-                android:textStyle="italic"/>
-        </LinearLayout>
+            android:text="Updated: Jan 30, 2026"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:layout_marginTop="12dp"
+            android:layout_gravity="center" />
 
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

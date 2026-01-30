@@ -38,6 +38,7 @@ import kotlinx.coroutines.tasks.await
 import android.app.ActivityManager
 import android.os.Debug
 import android.content.Context
+import com.google.firebase.firestore.Query
 import android.view.LayoutInflater
 import android.view.ViewGroup
 
@@ -530,9 +531,9 @@ class MainActivity : AppCompatActivity() {
                     hammingLoss = metrics.hammingLoss,
                     falseNegativeRate = metrics.fnr,
 
-                    hasHallucination = metrics.hasHallucination,
+                    hallucinationCount = metrics.hallucinationCount,  // ✅ CHANGED
                     hallucinatedAllergens = metrics.hallucinatedAllergens,
-                    hasOverPrediction = metrics.hasOverPrediction,
+                    overPredictionCount = metrics.overPredictionCount,  // ✅ CHANGED
                     overPredictedAllergens = metrics.overPredictedAllergens,
                     isAbstentionCase = metrics.isAbstentionCase,
                     isAbstentionCorrect = metrics.isAbstentionCorrect,
@@ -1289,9 +1290,9 @@ class MainActivity : AppCompatActivity() {
                                 hammingLoss = metrics.hammingLoss,
                                 falseNegativeRate = metrics.fnr,
 
-                                hasHallucination = metrics.hasHallucination,
+                                hallucinationCount = metrics.hallucinationCount,  // ✅ CHANGED
                                 hallucinatedAllergens = metrics.hallucinatedAllergens,
-                                hasOverPrediction = metrics.hasOverPrediction,
+                                overPredictionCount = metrics.overPredictionCount,  // ✅ CHANGED
                                 overPredictedAllergens = metrics.overPredictedAllergens,
                                 isAbstentionCase = metrics.isAbstentionCase,
                                 isAbstentionCorrect = metrics.isAbstentionCorrect,
@@ -1414,13 +1415,14 @@ class MainActivity : AppCompatActivity() {
     private fun cleanupInvalidFirebaseData() {
         lifecycleScope.launch {
             try {
-                Log.i(TAG, "=== CLEANING UP INVALID FIREBASE DATA ===")
+                Log.i(TAG, "=== CLEANING UP FIREBASE DATA ===")
 
-                Toast.makeText(this@MainActivity, "Cleaning up invalid data...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Cleaning up data...", Toast.LENGTH_SHORT).show()
 
                 val deletedCount = withContext(Dispatchers.IO) {
                     var count = 0
 
+                    // Step 1: Delete invalid records (itps=-1)
                     val snapshot1 = firestore.collection("predictions")
                         .whereEqualTo("itps", -1)
                         .get()
@@ -1432,6 +1434,7 @@ class MainActivity : AppCompatActivity() {
                         count++
                     }
 
+                    // Step 2: Delete invalid records (latency < 5000ms)
                     val snapshot2 = firestore.collection("predictions")
                         .whereLessThan("latencyMs", 5000)
                         .get()
@@ -1444,6 +1447,7 @@ class MainActivity : AppCompatActivity() {
                         count++
                     }
 
+                    // Step 3: Delete invalid records (ttftMs=-1)
                     val snapshot3 = firestore.collection("predictions")
                         .whereEqualTo("ttftMs", -1)
                         .get()
@@ -1455,13 +1459,44 @@ class MainActivity : AppCompatActivity() {
                         count++
                     }
 
+                    // Step 4: Limit to 200 documents PER MODEL (delete oldest if > 200)
+                    val allDocs = firestore.collection("predictions")
+                        .orderBy("timestamp", Query.Direction.DESCENDING)  // Newest first
+                        .get()
+                        .await()
+
+                    // Group documents by model name
+                    val docsByModel = allDocs.documents.groupBy { it.getString("modelName") ?: "Unknown" }
+
+                    Log.i(TAG, "Found ${docsByModel.size} different models")
+
+                    // For each model, keep only the 200 newest documents
+                    docsByModel.forEach { (modelName, docs) ->
+                        val totalForModel = docs.size
+                        Log.i(TAG, "Model '$modelName': $totalForModel documents")
+
+                        if (totalForModel > 200) {
+                            val docsToDelete = docs.drop(200)  // Keep first 200 (newest), delete the rest
+                            Log.i(TAG, "  → Deleting ${docsToDelete.size} oldest documents for model '$modelName'")
+
+                            docsToDelete.forEach { doc ->
+                                val timestamp = doc.getLong("timestamp") ?: 0
+                                Log.i(TAG, "    Deleting: ${doc.getString("name")} (timestamp: $timestamp)")
+                                doc.reference.delete().await()
+                                count++
+                            }
+                        } else {
+                            Log.i(TAG, "  → Model '$modelName' is within limit (${totalForModel}/200)")
+                        }
+                    }
+
                     count
                 }
 
-                Log.i(TAG, "✓ Cleanup complete: $deletedCount invalid records deleted")
+                Log.i(TAG, "✓ Cleanup complete: $deletedCount records deleted")
                 Toast.makeText(
                     this@MainActivity,
-                    "✓ Deleted $deletedCount invalid records",
+                    "✓ Deleted $deletedCount records. Each model now has max 200 docs.",
                     Toast.LENGTH_LONG
                 ).show()
 
@@ -1498,9 +1533,9 @@ class MainActivity : AppCompatActivity() {
                     "isExactMatch" to result.isExactMatch,
                     "hammingLoss" to result.hammingLoss,
                     "falseNegativeRate" to result.falseNegativeRate,
-                    "hasHallucination" to result.hasHallucination,
+                    "hallucinationCount" to result.hallucinationCount,
                     "hallucinatedAllergens" to result.hallucinatedAllergens,
-                    "hasOverPrediction" to result.hasOverPrediction,
+                    "overPredictionCount" to result.overPredictionCount,
                     "overPredictedAllergens" to result.overPredictedAllergens,
                     "isAbstentionCase" to result.isAbstentionCase,
                     "isAbstentionCorrect" to result.isAbstentionCorrect,
