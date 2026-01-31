@@ -29,12 +29,12 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     private var currentSortColumn: String = "F1 Score"
     private var isAscending: Boolean = false
 
-    // Firebase and UI variables (Same as before)
+    // Firebase and UI variables
     private lateinit var firestore: FirebaseFirestore
     private lateinit var progressBar: ProgressBar
     private lateinit var emptyText: TextView
 
-    // Cards (Same as before)
+    // Cards
     private lateinit var bestModelCard: MaterialCardView
     private lateinit var bestModelNameText: TextView
     private lateinit var bestModelF1Text: TextView
@@ -70,6 +70,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val hallucinationRate: Double,
         val overPredictionRate: Double,
         val abstentionAccuracy: Double,
+        val safetyTestCount: Int, // <--- NEW: Tracks how many safety tests exist
         // Efficiency
         val avgLatency: Double,
         val avgTTFT: Double,
@@ -172,7 +173,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 allPredictions = withContext(Dispatchers.IO) {
                     val snapshot = firestore.collection("predictions").get().await()
                     snapshot.documents.mapNotNull { doc ->
-                        // ... (Your parsing logic here - kept short for brevity)
                         try {
                             PredictionResult(
                                 dataId = doc.getString("dataId") ?: "",
@@ -251,10 +251,15 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val exactMatchRate = preds.count { it.isExactMatch }.toDouble() / preds.size
             val hallucinationRate = preds.count { it.hallucinationCount > 0 }.toDouble() / preds.size
             val overPredictionRate = preds.count { it.overPredictionCount > 0 }.toDouble() / preds.size
+
+            // --- ABSTENTION LOGIC FIX ---
             val abstentionCases = preds.filter { it.isAbstentionCase }
             val abstentionAccuracy = if (abstentionCases.isNotEmpty()) {
                 abstentionCases.count { it.isAbstentionCorrect }.toDouble() / abstentionCases.size
             } else { 0.0 }
+            val safetyTestCount = abstentionCases.size
+            // ----------------------------
+
             val avgLatency = preds.map { it.latencyMs.toDouble() }.average()
             val avgTTFT = preds.map { it.ttftMs.toDouble() }.average()
             val avgITPS = preds.map { it.itps.toDouble() }.average()
@@ -267,16 +272,13 @@ class EnhancedDashboardActivity : AppCompatActivity() {
 
             modelStats.add(ModelStatistics(
                 modelName, preds.size, avgPrecision, avgRecall, avgF1, avgAccuracy, exactMatchRate, avgHammingLoss, avgFNR,
-                hallucinationRate, overPredictionRate, abstentionAccuracy,
+                hallucinationRate, overPredictionRate, abstentionAccuracy, safetyTestCount,
                 avgLatency, avgTTFT, avgITPS, avgOTPS, avgOET, avgTotalTime, avgJavaHeap, avgNativeHeap, avgPSS
             ))
         }
 
         // Initial Sort
         modelStats.sortByDescending { it.avgF1 }
-        if (modelStats.isNotEmpty()) {
-            // (We don't modify isBest in the data class usually for sorting, but purely for display)
-        }
         build3SeparateTables()
     }
 
@@ -290,6 +292,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val bestF1 = modelStats.maxByOrNull { it.avgF1 }?.avgF1 ?: 0.0
         bestF1AllText.text = "Best F1: ${String.format("%.3f", bestF1)}"
     }
+
     private fun displayBestModel() {
         val bestModel = modelStats.firstOrNull() ?: return
 
@@ -297,22 +300,20 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         bestModelF1Text.text = "F1: ${String.format("%.3f", bestModel.avgF1)} (${String.format("%.1f", bestModel.avgF1 * 100)}%)"
         bestModelCountText.text = "${bestModel.predictionCount} predictions | Avg latency: ${(bestModel.avgLatency / 1000).toInt()}s"
     }
+
     private fun displayChampionModels() {
-        // Best Accuracy Model
         val bestAccuracyModel = modelStats.maxByOrNull { it.avgAccuracy }
         bestAccuracyModel?.let {
             bestAccuracyModelText.text = it.modelName
             bestAccuracyScoreText.text = "Accuracy: ${String.format("%.3f", it.avgAccuracy)}"
         }
 
-        // Best F1 Model
         val bestF1Model = modelStats.maxByOrNull { it.avgF1 }
         bestF1Model?.let {
             bestModelText.text = it.modelName
             bestF1ScoreText.text = "F1: ${String.format("%.3f", it.avgF1)}"
         }
 
-        // Fastest Model (lowest avg latency)
         val fastestModel = modelStats.minByOrNull { it.avgLatency }
         fastestModel?.let {
             fastestModelText.text = it.modelName
@@ -320,6 +321,10 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             fastestLatencyText.text = "Avg Latency: ${String.format("%.1f", latencySec)}s"
         }
     }
+
+    // ============================================
+    // EXCEL EXPORT (Traceability Compliant)
+    // ============================================
     private fun exportToExcel() {
         if (allPredictions.isEmpty()) {
             Toast.makeText(this, "No data to export", Toast.LENGTH_SHORT).show()
@@ -329,129 +334,86 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 Toast.makeText(this@EnhancedDashboardActivity, "Exporting to Excel...", Toast.LENGTH_SHORT).show()
-
-                val file = withContext(Dispatchers.IO) {
-                    createExcelFile(allPredictions)
-                }
-
-                Toast.makeText(
-                    this@EnhancedDashboardActivity,
-                    "✓ Exported to: ${file.name}",
-                    Toast.LENGTH_LONG
-                ).show()
-
-                Log.i(TAG, "Excel exported: ${file.absolutePath}")
-
+                val file = withContext(Dispatchers.IO) { createExcelFile(allPredictions) }
+                Toast.makeText(this@EnhancedDashboardActivity, "✓ Exported: ${file.name}", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Log.e(TAG, "Error exporting Excel", e)
-                Toast.makeText(
-                    this@EnhancedDashboardActivity,
-                    "Error exporting: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this@EnhancedDashboardActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
+
     private fun createExcelFile(predictions: List<PredictionResult>): File {
         val workbook = XSSFWorkbook()
         val byModel = predictions.groupBy { it.modelName }
 
         for ((modelName, modelPredictions) in byModel) {
             val sheet = workbook.createSheet(modelName.take(31))
-
-            // 1. UPDATE HEADERS
             val headerRow = sheet.createRow(0)
             val headers = listOf(
                 "ID", "Name", "Ingredients", "Ground Truth", "Predicted",
-                "TP", "FP", "FN", "TN",
-                "Precision", "Recall", "F1", "Accuracy",
+                "TP", "FP", "FN", "TN", "Precision", "Recall", "F1", "Accuracy",
                 "Exact Match", "Hamming Loss", "FNR",
-
-                // SAFETY & ERRORS (Updated)
-                "Hallucination Count", "Hallucinated Allergens", // Added Details
-                "Over-Pred Count", "Over-Pred Allergens",        // Added Details
-                "Is Safety Test?", "Safety Check Result",        // Added Abstention
-
-                // EFFICIENCY
+                "Hallucination Count", "Hallucinated Allergens",
+                "Over-Pred Count", "Over-Pred Allergens",
+                "Is Safety Test?", "Safety Check Result",
                 "Latency (ms)", "TTFT (ms)", "ITPS", "OTPS", "OET (ms)", "Total (ms)",
                 "Java Heap (KB)", "Native Heap (KB)", "PSS (KB)",
-
-                // CONTEXT
-                "Device Model", "Model" // Added Device
+                "Device Model", "Model"
             )
 
-            headers.forEachIndexed { index, header ->
-                headerRow.createCell(index).setCellValue(header)
-            }
+            headers.forEachIndexed { index, header -> headerRow.createCell(index).setCellValue(header) }
 
-            // 2. UPDATE DATA ROWS
             modelPredictions.forEachIndexed { index, result ->
                 val row = sheet.createRow(index + 1)
-                var colIndex = 0
+                var c = 0
+                row.createCell(c++).setCellValue(result.dataId)
+                row.createCell(c++).setCellValue(result.name)
+                row.createCell(c++).setCellValue(result.ingredients)
+                row.createCell(c++).setCellValue(result.allergensMapped)
+                row.createCell(c++).setCellValue(result.predictedAllergens)
+                row.createCell(c++).setCellValue(result.truePositives.toDouble())
+                row.createCell(c++).setCellValue(result.falsePositives.toDouble())
+                row.createCell(c++).setCellValue(result.falseNegatives.toDouble())
+                row.createCell(c++).setCellValue(result.trueNegatives.toDouble())
+                row.createCell(c++).setCellValue(result.precision)
+                row.createCell(c++).setCellValue(result.recall)
+                row.createCell(c++).setCellValue(result.f1Score)
+                row.createCell(c++).setCellValue(result.accuracy)
+                row.createCell(c++).setCellValue(if (result.isExactMatch) "Yes" else "No")
+                row.createCell(c++).setCellValue(result.hammingLoss)
+                row.createCell(c++).setCellValue(result.falseNegativeRate)
+                row.createCell(c++).setCellValue(result.hallucinationCount.toDouble())
+                row.createCell(c++).setCellValue(result.hallucinatedAllergens)
+                row.createCell(c++).setCellValue(result.overPredictionCount.toDouble())
+                row.createCell(c++).setCellValue(result.overPredictedAllergens)
 
-                // Basic
-                row.createCell(colIndex++).setCellValue(result.dataId)
-                row.createCell(colIndex++).setCellValue(result.name)
-                row.createCell(colIndex++).setCellValue(result.ingredients)
-                row.createCell(colIndex++).setCellValue(result.allergensMapped)
-                row.createCell(colIndex++).setCellValue(result.predictedAllergens)
-
-                // Quality
-                row.createCell(colIndex++).setCellValue(result.truePositives.toDouble())
-                row.createCell(colIndex++).setCellValue(result.falsePositives.toDouble())
-                row.createCell(colIndex++).setCellValue(result.falseNegatives.toDouble())
-                row.createCell(colIndex++).setCellValue(result.trueNegatives.toDouble())
-                row.createCell(colIndex++).setCellValue(result.precision)
-                row.createCell(colIndex++).setCellValue(result.recall)
-                row.createCell(colIndex++).setCellValue(result.f1Score)
-                row.createCell(colIndex++).setCellValue(result.accuracy)
-                row.createCell(colIndex++).setCellValue(if (result.isExactMatch) "Yes" else "No")
-                row.createCell(colIndex++).setCellValue(result.hammingLoss)
-                row.createCell(colIndex++).setCellValue(result.falseNegativeRate)
-
-                // Safety & Errors
-                row.createCell(colIndex++).setCellValue(result.hallucinationCount.toDouble())
-                row.createCell(colIndex++).setCellValue(result.hallucinatedAllergens) // NEW
-
-                row.createCell(colIndex++).setCellValue(result.overPredictionCount.toDouble())
-                row.createCell(colIndex++).setCellValue(result.overPredictedAllergens) // NEW
-
-                // Abstention Logic
                 if (result.isAbstentionCase) {
-                    row.createCell(colIndex++).setCellValue("Yes")
-                    row.createCell(colIndex++).setCellValue(if (result.isAbstentionCorrect) "PASSED" else "FAILED")
+                    row.createCell(c++).setCellValue("Yes")
+                    row.createCell(c++).setCellValue(if (result.isAbstentionCorrect) "PASSED" else "FAILED")
                 } else {
-                    row.createCell(colIndex++).setCellValue("No")
-                    row.createCell(colIndex++).setCellValue("N/A")
+                    row.createCell(c++).setCellValue("No")
+                    row.createCell(c++).setCellValue("N/A")
                 }
 
-                // Efficiency
-                row.createCell(colIndex++).setCellValue(result.latencyMs.toDouble())
-                row.createCell(colIndex++).setCellValue(result.ttftMs.toDouble())
-                row.createCell(colIndex++).setCellValue(result.itps.toDouble())
-                row.createCell(colIndex++).setCellValue(result.otps.toDouble())
-                row.createCell(colIndex++).setCellValue(result.oetMs.toDouble())
-                row.createCell(colIndex++).setCellValue(result.totalTimeMs.toDouble())
-                row.createCell(colIndex++).setCellValue(result.javaHeapKb.toDouble())
-                row.createCell(colIndex++).setCellValue(result.nativeHeapKb.toDouble())
-                row.createCell(colIndex++).setCellValue(result.totalPssKb.toDouble())
-
-                // Context
-                row.createCell(colIndex++).setCellValue(result.deviceModel) // NEW
-                row.createCell(colIndex++).setCellValue(result.modelName)
+                row.createCell(c++).setCellValue(result.latencyMs.toDouble())
+                row.createCell(c++).setCellValue(result.ttftMs.toDouble())
+                row.createCell(c++).setCellValue(result.itps.toDouble())
+                row.createCell(c++).setCellValue(result.otps.toDouble())
+                row.createCell(c++).setCellValue(result.oetMs.toDouble())
+                row.createCell(c++).setCellValue(result.totalTimeMs.toDouble())
+                row.createCell(c++).setCellValue(result.javaHeapKb.toDouble())
+                row.createCell(c++).setCellValue(result.nativeHeapKb.toDouble())
+                row.createCell(c++).setCellValue(result.totalPssKb.toDouble())
+                row.createCell(c++).setCellValue(result.deviceModel)
+                row.createCell(c++).setCellValue(result.modelName)
             }
         }
 
-        // Save to file
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val timestamp = System.currentTimeMillis()
-        val file = File(downloadsDir, "SLM_All_Metrics_$timestamp.xlsx")
-        FileOutputStream(file).use { outputStream ->
-            workbook.write(outputStream)
-        }
-
+        val file = File(downloadsDir, "SLM_All_Metrics_${System.currentTimeMillis()}.xlsx")
+        FileOutputStream(file).use { workbook.write(it) }
         workbook.close()
-
         return file
     }
 
@@ -462,7 +424,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     }
 
     // ============================================
-    // TABLE BUILDING (With Sort Keys)
+    // TABLE BUILDING (With Sort Keys & N/A Fix)
     // ============================================
 
     private fun buildQualityMetricsTable() {
@@ -475,8 +437,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
 
         fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.quality_header))
         val headerRow = createHeaderRowContainer(R.color.quality_header)
-
-        // PASS SORT KEYS
         headerRow.addView(createHeaderCell("F1 Score", 90, "F1 Score"))
         headerRow.addView(createHeaderCell("Precision", 90, "Precision"))
         headerRow.addView(createHeaderCell("Recall", 90, "Recall"))
@@ -490,7 +450,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
             fixedContainer.addView(createFixedDataCell(model.modelName, bgColor))
             val dataRow = createDataRowContainer(bgColor)
-
             dataRow.addView(createDataCell(String.format("%.3f", model.avgF1), 90, "#6200EA", true))
             dataRow.addView(createDataCell(String.format("%.3f", model.avgPrecision), 90))
             dataRow.addView(createDataCell(String.format("%.3f", model.avgRecall), 90))
@@ -511,7 +470,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         if (modelStats.isEmpty()) return
         fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.safety_header))
         val headerRow = createHeaderRowContainer(R.color.safety_header)
-
         headerRow.addView(createHeaderCell("Hallucination\nRate", 120, "Hallucination Rate"))
         headerRow.addView(createHeaderCell("Over-Prediction\nRate", 130, "Over-Prediction Rate"))
         headerRow.addView(createHeaderCell("Abstention\nAccuracy", 120, "Abstention Accuracy"))
@@ -523,7 +481,20 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val dataRow = createDataRowContainer(bgColor)
             dataRow.addView(createDataCell("${(model.hallucinationRate * 100).toInt()}%", 120, "#F44336", true))
             dataRow.addView(createDataCell("${(model.overPredictionRate * 100).toInt()}%", 130, "#FF9800", true))
-            dataRow.addView(createDataCell("${(model.abstentionAccuracy * 100).toInt()}%", 120, "#4CAF50", true))
+
+            // =================================================================
+            // THIS IS THE CRITICAL PART THAT FIXES THE "0%" ISSUE
+            // =================================================================
+            if (model.safetyTestCount > 0) {
+                // CASE 1: We have tests. Show the score.
+                val color = if (model.abstentionAccuracy > 0.8) "#4CAF50" else "#F44336"
+                dataRow.addView(createDataCell("${(model.abstentionAccuracy * 100).toInt()}%", 120, color, true))
+            } else {
+                // CASE 2: No tests found. Show N/A (Gray).
+                dataRow.addView(createDataCell("N/A", 120, "#9E9E9E", false))
+            }
+            // =================================================================
+
             scrollContainer.addView(dataRow)
         }
     }
@@ -537,7 +508,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         if (modelStats.isEmpty()) return
         fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.efficiency_header))
         val headerRow = createHeaderRowContainer(R.color.efficiency_header)
-
         headerRow.addView(createHeaderCell("Avg\nLatency", 90, "Avg Latency"))
         headerRow.addView(createHeaderCell("TTFT", 90, "TTFT"))
         headerRow.addView(createHeaderCell("ITPS", 80, "ITPS"))
@@ -567,7 +537,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     }
 
     // ============================================
-    // UPDATED HELPER FUNCTIONS
+    // HELPER FUNCTIONS (UI CREATION)
     // ============================================
 
     private fun createHeaderRowContainer(colorResId: Int): LinearLayout {
@@ -614,27 +584,20 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         }
     }
 
-    // UPDATED: Now accepts a sortKey and sets Click Listener
     private fun createHeaderCell(text: String, widthDp: Int, sortKey: String): TextView {
         return TextView(this).apply {
             var displayText = text
-            // Add arrow if active
             if (currentSortColumn == sortKey) {
                 displayText += if (isAscending) " ⬆️" else " ⬇️"
             }
             this.text = displayText
-
             layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.MATCH_PARENT)
             setPadding(12, 0, 12, 0)
             textSize = 13f
             setTextColor(getColor(R.color.white))
             setTypeface(null, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
-
-            // CLICK TO SORT
-            setOnClickListener {
-                sortDataBy(sortKey)
-            }
+            setOnClickListener { sortDataBy(sortKey) }
         }
     }
 
