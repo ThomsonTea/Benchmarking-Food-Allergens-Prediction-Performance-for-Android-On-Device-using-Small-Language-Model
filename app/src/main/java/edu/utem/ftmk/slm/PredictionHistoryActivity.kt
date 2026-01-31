@@ -8,6 +8,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +20,7 @@ import kotlinx.coroutines.withContext
 /**
  * Activity to display history of all past predictions
  * Shows searchable, filterable list of predictions from Firebase
- * FIXED: Now uses timestamp instead of latencyMs for sorting newest/oldest
+ * Includes dynamic Model Breakdown statistics.
  */
 class PredictionHistoryActivity : AppCompatActivity() {
 
@@ -34,11 +36,15 @@ class PredictionHistoryActivity : AppCompatActivity() {
     private lateinit var searchView: SearchView
     private lateinit var modelFilterSpinner: Spinner
     private lateinit var sortSpinner: Spinner
+    private lateinit var modelBreakdownContainer: LinearLayout
+
+    // Stats Views
     private lateinit var statsCard: View
     private lateinit var totalCountText: TextView
     private lateinit var avgF1Text: TextView
     private lateinit var avgPrecisionText: TextView
     private lateinit var avgRecallText: TextView
+    private lateinit var modelCountsChipGroup: ChipGroup // <--- ADDED THIS
 
     private val allPredictions = mutableListOf<PredictionResult>()
     private var filteredPredictions = mutableListOf<PredictionResult>()
@@ -66,12 +72,14 @@ class PredictionHistoryActivity : AppCompatActivity() {
         searchView = findViewById(R.id.searchView)
         modelFilterSpinner = findViewById(R.id.modelFilterSpinner)
         sortSpinner = findViewById(R.id.sortSpinner)
+
+        // Stats Card Views
         statsCard = findViewById(R.id.statsCard)
         totalCountText = findViewById(R.id.totalCountText)
         avgF1Text = findViewById(R.id.avgF1Text)
         avgPrecisionText = findViewById(R.id.avgPrecisionText)
         avgRecallText = findViewById(R.id.avgRecallText)
-
+        modelBreakdownContainer = findViewById(R.id.modelBreakdownContainer)
         // Back button
         findViewById<ImageButton>(R.id.backButton).setOnClickListener {
             finish()
@@ -145,7 +153,7 @@ class PredictionHistoryActivity : AppCompatActivity() {
 
                 val predictions = withContext(Dispatchers.IO) {
                     val snapshot = firestore.collection("predictions")
-                        .orderBy("timestamp", Query.Direction.DESCENDING)  // ✅ FIXED: Use timestamp instead of latencyMs
+                        .orderBy("timestamp", Query.Direction.DESCENDING)
                         .get()
                         .await()
 
@@ -194,7 +202,7 @@ class PredictionHistoryActivity : AppCompatActivity() {
                                 deviceModel = doc.getString("deviceModel") ?: "",
                                 androidVersion = doc.getString("androidVersion") ?: "",
 
-                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()  // ✅ Load timestamp
+                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
                             )
                             results.add(result)
                         } catch (e: Exception) {
@@ -202,25 +210,6 @@ class PredictionHistoryActivity : AppCompatActivity() {
                         }
                     }
                     results
-                }
-
-                predictions.forEach { prediction ->
-                    Log.d("FIREBASE_LOAD", """
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        Loaded: ${prediction.name}
-        Model: ${prediction.modelName}
-        Ground Truth: ${prediction.allergensMapped}
-        Predicted: ${prediction.predictedAllergens}
-        ───────────────────────────────────────────
-        F1 Score: ${prediction.f1Score}
-        Precision: ${prediction.precision}
-        Recall: ${prediction.recall}
-        Accuracy: ${prediction.accuracy}
-        ───────────────────────────────────────────
-        TP=${prediction.truePositives} FP=${prediction.falsePositives}
-        FN=${prediction.falseNegatives} TN=${prediction.trueNegatives}
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    """.trimIndent())
                 }
 
                 allPredictions.clear()
@@ -283,10 +272,10 @@ class PredictionHistoryActivity : AppCompatActivity() {
             matchesModel && matchesSearch
         }.toMutableList()
 
-        // ✅ FIXED: Sort using timestamp for newest/oldest
+        // Sort using timestamp for newest/oldest
         when (sortOption) {
-            0 -> filteredPredictions.sortByDescending { it.timestamp } // Newest First (highest timestamp = most recent)
-            1 -> filteredPredictions.sortBy { it.timestamp } // Oldest First (lowest timestamp = oldest)
+            0 -> filteredPredictions.sortByDescending { it.timestamp } // Newest First
+            1 -> filteredPredictions.sortBy { it.timestamp } // Oldest First
             2 -> filteredPredictions.sortByDescending { it.f1Score } // Highest F1
             3 -> filteredPredictions.sortBy { it.f1Score } // Lowest F1
             4 -> filteredPredictions.sortBy { it.name } // A-Z
@@ -301,6 +290,9 @@ class PredictionHistoryActivity : AppCompatActivity() {
     }
 
     private fun updateStats() {
+        // Clear previous rows
+        modelBreakdownContainer.removeAllViews()
+
         if (filteredPredictions.isEmpty()) {
             totalCountText.text = "0 predictions"
             avgF1Text.text = "F1: --"
@@ -309,6 +301,7 @@ class PredictionHistoryActivity : AppCompatActivity() {
             return
         }
 
+        // 1. Update General Stats
         val avgF1 = filteredPredictions.map { it.f1Score }.average()
         val avgPrecision = filteredPredictions.map { it.precision }.average()
         val avgRecall = filteredPredictions.map { it.recall }.average()
@@ -317,5 +310,58 @@ class PredictionHistoryActivity : AppCompatActivity() {
         avgF1Text.text = "F1: ${String.format("%.3f", avgF1)}"
         avgPrecisionText.text = "Precision: ${String.format("%.3f", avgPrecision)}"
         avgRecallText.text = "Recall: ${String.format("%.3f", avgRecall)}"
+
+        // 2. Update Model Breakdown (Vertical Rows)
+        val modelCounts = filteredPredictions.groupingBy { it.modelName }.eachCount()
+
+        // Sort alphabetically
+        modelCounts.toSortedMap().forEach { (modelName, count) ->
+
+            // Create a Horizontal Row for this model
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(0, 8, 0, 8) // Add vertical spacing between rows
+            }
+
+            // A. Model Name (Left side, takes all available space)
+            val nameView = TextView(this).apply {
+                text = modelName
+                // Weight 1 pushes the count to the right
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setTextColor(getColor(R.color.text_primary))
+                textSize = 13f
+            }
+
+            // B. Count (Right side)
+            val countView = TextView(this).apply {
+                text = count.toString()
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setTextColor(getColor(R.color.text_primary))
+                setTypeface(null, android.graphics.Typeface.BOLD) // Make number bold
+                textSize = 13f
+            }
+
+            // Add views to row
+            row.addView(nameView)
+            row.addView(countView)
+
+            // Add row to container
+            modelBreakdownContainer.addView(row)
+
+            // Optional: Add a thin divider line between rows
+            val divider = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1) // 1px height
+                setBackgroundColor(getColor(R.color.divider)) // Use gray color
+                alpha = 0.5f
+            }
+            modelBreakdownContainer.addView(divider)
+        }
     }
 }

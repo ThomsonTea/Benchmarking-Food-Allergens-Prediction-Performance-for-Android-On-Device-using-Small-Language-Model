@@ -155,14 +155,26 @@ class PredictionHistoryAdapter(
             }
 
             if (holder.abstentionText != null) {
-                holder.abstentionText.text = when {
-                    prediction.isAbstentionCase && prediction.isAbstentionCorrect -> "Abstention: ✓ Correct"
-                    prediction.isAbstentionCase && !prediction.isAbstentionCorrect -> "Abstention: ✗ Wrong"
-                    else -> "Abstention: N/A"
+                when {
+                    // CASE 1: Safety Test Passed (Show GREEN)
+                    prediction.isAbstentionCase && prediction.isAbstentionCorrect -> {
+                        holder.abstentionText.visibility = View.VISIBLE // <--- Show it
+                        holder.abstentionText.text = "🛡️ Abstention: ✓ PASSED"
+                        holder.abstentionText.setTextColor(android.graphics.Color.parseColor("#2E7D32")) // Dark Green
+                    }
+
+                    // CASE 2: Safety Test Failed (Show RED)
+                    prediction.isAbstentionCase && !prediction.isAbstentionCorrect -> {
+                        holder.abstentionText.visibility = View.VISIBLE // <--- Show it
+                        holder.abstentionText.text = "⚠️ Abstention: ✗ FAILED"
+                        holder.abstentionText.setTextColor(android.graphics.Color.parseColor("#C62828")) // Dark Red
+                    }
+
+                    // CASE 3: Standard Prediction (HIDE IT)
+                    else -> {
+                        holder.abstentionText.visibility = View.GONE // <--- Hide it completely
+                    }
                 }
-                Log.d("ADAPTER_BIND", "✓ Set abstentionText successfully")
-            } else {
-                Log.e("ADAPTER_ERROR", "❌ abstentionText is NULL!")
             }
         } catch (e: Exception) {
             Log.e("ADAPTER_ERROR", "Error setting safety metrics: ${e.message}")

@@ -1,6 +1,7 @@
 package edu.utem.ftmk.slm
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
@@ -8,8 +9,6 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -20,39 +19,31 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
 
-/**
- * Enhanced Dashboard with ALL metrics from Table 2, 3, and 4
- * Aggregates and compares model performance
- */
 class EnhancedDashboardActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "ENHANCED_DASHBOARD"
     }
 
-    // Firebase
+    // Sort State
+    private var currentSortColumn: String = "F1 Score"
+    private var isAscending: Boolean = false
+
+    // Firebase and UI variables (Same as before)
     private lateinit var firestore: FirebaseFirestore
-    
-    // UI Components
     private lateinit var progressBar: ProgressBar
-   // private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
-   // private lateinit var adapter: ModelComparisonAdapter
-    
-    // Best Model Card
+
+    // Cards (Same as before)
     private lateinit var bestModelCard: MaterialCardView
     private lateinit var bestModelNameText: TextView
     private lateinit var bestModelF1Text: TextView
     private lateinit var bestModelCountText: TextView
-    
-    // Overall Stats Card
     private lateinit var overallStatsCard: MaterialCardView
     private lateinit var totalPredictionsText: TextView
     private lateinit var totalModelsText: TextView
     private lateinit var avgF1AllText: TextView
     private lateinit var bestF1AllText: TextView
-    
-    // Champion Models
     private lateinit var bestAccuracyModelText: TextView
     private lateinit var bestAccuracyScoreText: TextView
     private lateinit var bestModelText: TextView
@@ -64,28 +55,22 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     private val modelStats = mutableListOf<ModelStatistics>()
     private var allPredictions = listOf<PredictionResult>()
 
-    /**
-     * Complete ModelStatistics with ALL metrics from Table 2, 3, and 4
-     */
     data class ModelStatistics(
         val modelName: String,
         val predictionCount: Int,
-        
-        // TABLE 2: Prediction Quality Metrics (AVERAGED)
+        // Quality
         val avgPrecision: Double,
         val avgRecall: Double,
         val avgF1: Double,
         val avgAccuracy: Double,
-        val exactMatchRate: Double,      // % of exact matches
+        val exactMatchRate: Double,
         val avgHammingLoss: Double,
         val avgFNR: Double,
-        
-        // TABLE 3: Safety-Oriented Metrics (RATES)
-        val hallucinationRate: Double,   // % with hallucinations
-        val overPredictionRate: Double,   // % with over-predictions
-        val abstentionAccuracy: Double,   // % correct abstentions
-        
-        // TABLE 4: On-Device Efficiency Metrics (AVERAGED)
+        // Safety
+        val hallucinationRate: Double,
+        val overPredictionRate: Double,
+        val abstentionAccuracy: Double,
+        // Efficiency
         val avgLatency: Double,
         val avgTTFT: Double,
         val avgITPS: Double,
@@ -95,42 +80,29 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val avgJavaHeap: Double,
         val avgNativeHeap: Double,
         val avgPSS: Double,
-        
-        // Display flag
         val isBest: Boolean = false
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_enhanced_dashboard)
-
         firestore = FirebaseFirestore.getInstance()
-
         initializeViews()
-        //setupRecyclerView()
         loadAllPredictions()
     }
 
     private fun initializeViews() {
-        // Main views
         progressBar = findViewById(R.id.dashboardProgressBar)
-        //recyclerView = findViewById(R.id.modelComparisonRecyclerView)
         emptyText = findViewById(R.id.emptyText)
-        
-        // Best Model Card
         bestModelCard = findViewById(R.id.bestModelCard)
         bestModelNameText = findViewById(R.id.bestModelNameText)
         bestModelF1Text = findViewById(R.id.bestModelF1Text)
         bestModelCountText = findViewById(R.id.bestModelCountText)
-        
-        // Overall Stats Card
         overallStatsCard = findViewById(R.id.overallStatsCard)
         totalPredictionsText = findViewById(R.id.totalPredictionsText)
         totalModelsText = findViewById(R.id.totalModelsText)
         avgF1AllText = findViewById(R.id.avgF1AllText)
         bestF1AllText = findViewById(R.id.bestF1AllText)
-        
-        // Champion Models
         bestAccuracyModelText = findViewById(R.id.bestAccuracyModelText)
         bestAccuracyScoreText = findViewById(R.id.bestAccuracyScoreText)
         bestModelText = findViewById(R.id.bestModelText)
@@ -138,47 +110,69 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         fastestModelText = findViewById(R.id.fastestModelText)
         fastestLatencyText = findViewById(R.id.fastestLatencyText)
 
-        // Back button
-        findViewById<ImageButton>(R.id.backButton).setOnClickListener {
-            finish()
-        }
-
-        // Export button
-        findViewById<Button>(R.id.exportButton).setOnClickListener {
-            exportToExcel()
-        }
-
-        // View history button
+        findViewById<ImageButton>(R.id.backButton).setOnClickListener { finish() }
+        findViewById<Button>(R.id.exportButton).setOnClickListener { exportToExcel() }
         findViewById<Button>(R.id.viewHistoryButton).setOnClickListener {
             startActivity(Intent(this, PredictionHistoryActivity::class.java))
         }
     }
 
-   /* private fun setupRecyclerView() {
-        adapter = ModelComparisonAdapter(modelStats)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = adapter
-    }*/
+    // ============================================
+    // SORTING LOGIC
+    // ============================================
+    private fun sortDataBy(columnName: String) {
+        if (currentSortColumn == columnName) {
+            isAscending = !isAscending
+        } else {
+            currentSortColumn = columnName
+            isAscending = false // Default to descending for most metrics
+        }
+
+        val selector: (ModelStatistics) -> Double = when (columnName) {
+            "F1 Score" -> { it -> it.avgF1 }
+            "Precision" -> { it -> it.avgPrecision }
+            "Recall" -> { it -> it.avgRecall }
+            "Accuracy" -> { it -> it.avgAccuracy }
+            "EMR" -> { it -> it.exactMatchRate }
+            "Hamming Loss" -> { it -> it.avgHammingLoss }
+            "FNR" -> { it -> it.avgFNR }
+            "Hallucination Rate" -> { it -> it.hallucinationRate }
+            "Over-Prediction Rate" -> { it -> it.overPredictionRate }
+            "Abstention Accuracy" -> { it -> it.abstentionAccuracy }
+            "Avg Latency" -> { it -> it.avgLatency }
+            "TTFT" -> { it -> it.avgTTFT }
+            "ITPS" -> { it -> it.avgITPS }
+            "OTPS" -> { it -> it.avgOTPS }
+            "OET" -> { it -> it.avgOET }
+            "Total Time" -> { it -> it.avgTotalTime }
+            "Java Heap" -> { it -> it.avgJavaHeap }
+            "Native Heap" -> { it -> it.avgNativeHeap }
+            "PSS" -> { it -> it.avgPSS }
+            else -> { it -> it.avgF1 }
+        }
+
+        if (isAscending) {
+            modelStats.sortBy(selector)
+        } else {
+            modelStats.sortByDescending(selector)
+        }
+
+        // REBUILD TABLES
+        build3SeparateTables()
+    }
 
     private fun loadAllPredictions() {
         lifecycleScope.launch {
             try {
                 progressBar.visibility = View.VISIBLE
-               // recyclerView.visibility = View.GONE
                 emptyText.visibility = View.GONE
                 bestModelCard.visibility = View.GONE
                 overallStatsCard.visibility = View.GONE
 
-                Log.i(TAG, "Loading all predictions from Firebase...")
-
-                // Load predictions from Firebase
                 allPredictions = withContext(Dispatchers.IO) {
-                    val snapshot = firestore.collection("predictions")
-                        .get()
-                        .await()
-
-                    // Map documents to PredictionResult objects
+                    val snapshot = firestore.collection("predictions").get().await()
                     snapshot.documents.mapNotNull { doc ->
+                        // ... (Your parsing logic here - kept short for brevity)
                         try {
                             PredictionResult(
                                 dataId = doc.getString("dataId") ?: "",
@@ -188,7 +182,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                                 allergensMapped = doc.getString("allergensMapped") ?: "",
                                 predictedAllergens = doc.getString("predictedAllergens") ?: "",
                                 modelName = doc.getString("modelName") ?: "Unknown",
-
                                 truePositives = doc.getLong("truePositives")?.toInt() ?: 0,
                                 falsePositives = doc.getLong("falsePositives")?.toInt() ?: 0,
                                 falseNegatives = doc.getLong("falseNegatives")?.toInt() ?: 0,
@@ -200,43 +193,28 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                                 isExactMatch = doc.getBoolean("isExactMatch") ?: false,
                                 hammingLoss = doc.getDouble("hammingLoss") ?: 0.0,
                                 falseNegativeRate = doc.getDouble("falseNegativeRate") ?: 0.0,
-
                                 hallucinationCount = doc.getLong("hallucinationCount")?.toInt() ?: 0,
                                 hallucinatedAllergens = doc.getString("hallucinatedAllergens") ?: "",
                                 overPredictionCount = doc.getLong("overPredictionCount")?.toInt() ?: 0,
                                 overPredictedAllergens = doc.getString("overPredictedAllergens") ?: "",
                                 isAbstentionCase = doc.getBoolean("isAbstentionCase") ?: false,
                                 isAbstentionCorrect = doc.getBoolean("isAbstentionCorrect") ?: false,
-
                                 latencyMs = doc.getLong("latencyMs") ?: 0L,
                                 ttftMs = doc.getLong("ttftMs") ?: 0L,
                                 itps = doc.getLong("itps") ?: 0L,
                                 otps = doc.getLong("otps") ?: 0L,
                                 oetMs = doc.getLong("oetMs") ?: 0L,
                                 totalTimeMs = doc.getLong("totalTimeMs") ?: 0L,
-
                                 javaHeapKb = doc.getLong("javaHeapKb") ?: 0L,
                                 nativeHeapKb = doc.getLong("nativeHeapKb") ?: 0L,
                                 totalPssKb = doc.getLong("totalPssKb") ?: 0L,
-
                                 deviceModel = doc.getString("deviceModel") ?: "",
                                 androidVersion = doc.getString("androidVersion") ?: "",
-                                
                                 timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
                             )
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Error parsing document: ${e.message}")
-                            null
-                        }
+                        } catch (e: Exception) { null }
                     }
                 }
-                allPredictions.forEach { pred ->
-                    Log.d("DASHBOARD_LOAD", """
-        ${pred.name}: F1=${pred.f1Score}, P=${pred.precision}, R=${pred.recall}
-    """.trimIndent())
-                }
-
-                Log.i(TAG, "✓ Loaded ${allPredictions.size} predictions")
 
                 if (allPredictions.isEmpty()) {
                     progressBar.visibility = View.GONE
@@ -244,43 +222,26 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // Calculate statistics by model
                 calculateModelStatistics()
-
-                // Display overall stats
                 displayOverallStats()
-
-                // Display best model
                 displayBestModel()
-
-                // Display champion models
                 displayChampionModels()
 
                 progressBar.visibility = View.GONE
-              //  recyclerView.visibility = View.VISIBLE
                 bestModelCard.visibility = View.VISIBLE
                 overallStatsCard.visibility = View.VISIBLE
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading predictions", e)
                 progressBar.visibility = View.GONE
-                emptyText.text = "Error loading data: ${e.message}"
-                emptyText.visibility = View.VISIBLE
                 Toast.makeText(this@EnhancedDashboardActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun calculateModelStatistics() {
-        // Group by model
         val byModel = allPredictions.groupBy { it.modelName }
-
         modelStats.clear()
-
-        // Calculate stats for each model
         for ((modelName, preds) in byModel) {
-            
-            // TABLE 2: Quality Metrics (AVERAGES)
             val avgPrecision = preds.map { it.precision }.average()
             val avgRecall = preds.map { it.recall }.average()
             val avgF1 = preds.map { it.f1Score }.average()
@@ -288,19 +249,12 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val avgHammingLoss = preds.map { it.hammingLoss }.average()
             val avgFNR = preds.map { it.falseNegativeRate }.average()
             val exactMatchRate = preds.count { it.isExactMatch }.toDouble() / preds.size
-            
-            // TABLE 3: Safety Metrics (RATES as percentages)
             val hallucinationRate = preds.count { it.hallucinationCount > 0 }.toDouble() / preds.size
             val overPredictionRate = preds.count { it.overPredictionCount > 0 }.toDouble() / preds.size
-            
             val abstentionCases = preds.filter { it.isAbstentionCase }
             val abstentionAccuracy = if (abstentionCases.isNotEmpty()) {
                 abstentionCases.count { it.isAbstentionCorrect }.toDouble() / abstentionCases.size
-            } else {
-                0.0
-            }
-            
-            // TABLE 4: Efficiency Metrics (AVERAGES)
+            } else { 0.0 }
             val avgLatency = preds.map { it.latencyMs.toDouble() }.average()
             val avgTTFT = preds.map { it.ttftMs.toDouble() }.average()
             val avgITPS = preds.map { it.itps.toDouble() }.average()
@@ -311,63 +265,18 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             val avgNativeHeap = preds.map { it.nativeHeapKb.toDouble() }.average()
             val avgPSS = preds.map { it.totalPssKb.toDouble() }.average()
 
-            for ((modelName, stats) in modelStats.withIndex()) {
-                Log.d("DASHBOARD_STATS", """
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        Model: ${stats.modelName}
-        Count: ${stats.predictionCount}
-        Avg F1: ${stats.avgF1}
-        Avg Precision: ${stats.avgPrecision}
-        Avg Recall: ${stats.avgRecall}
-        Avg Accuracy: ${stats.avgAccuracy}
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    """.trimIndent())
-            }
-
-            modelStats.add(
-                ModelStatistics(
-                    modelName = modelName,
-                    predictionCount = preds.size,
-                    
-                    // Table 2
-                    avgPrecision = avgPrecision,
-                    avgRecall = avgRecall,
-                    avgF1 = avgF1,
-                    avgAccuracy = avgAccuracy,
-                    exactMatchRate = exactMatchRate,
-                    avgHammingLoss = avgHammingLoss,
-                    avgFNR = avgFNR,
-                    
-                    // Table 3
-                    hallucinationRate = hallucinationRate,
-                    overPredictionRate = overPredictionRate,
-                    abstentionAccuracy = abstentionAccuracy,
-                    
-                    // Table 4
-                    avgLatency = avgLatency,
-                    avgTTFT = avgTTFT,
-                    avgITPS = avgITPS,
-                    avgOTPS = avgOTPS,
-                    avgOET = avgOET,
-                    avgTotalTime = avgTotalTime,
-                    avgJavaHeap = avgJavaHeap,
-                    avgNativeHeap = avgNativeHeap,
-                    avgPSS = avgPSS,
-                    
-                    isBest = false
-                )
-            )
+            modelStats.add(ModelStatistics(
+                modelName, preds.size, avgPrecision, avgRecall, avgF1, avgAccuracy, exactMatchRate, avgHammingLoss, avgFNR,
+                hallucinationRate, overPredictionRate, abstentionAccuracy,
+                avgLatency, avgTTFT, avgITPS, avgOTPS, avgOET, avgTotalTime, avgJavaHeap, avgNativeHeap, avgPSS
+            ))
         }
 
-        // Sort by F1 score (descending)
+        // Initial Sort
         modelStats.sortByDescending { it.avgF1 }
-
-        // Mark best model
         if (modelStats.isNotEmpty()) {
-            modelStats[0] = modelStats[0].copy(isBest = true)
+            // (We don't modify isBest in the data class usually for sorting, but purely for display)
         }
-
-        // Update adapter
         build3SeparateTables()
     }
 
@@ -381,278 +290,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val bestF1 = modelStats.maxByOrNull { it.avgF1 }?.avgF1 ?: 0.0
         bestF1AllText.text = "Best F1: ${String.format("%.3f", bestF1)}"
     }
-
-    // Add these methods to EnhancedDashboardActivity.kt
-
-    private fun build3SeparateTables() {
-        buildQualityMetricsTable()
-        buildSafetyMetricsTable()
-        buildEfficiencyMetricsTable()
-    }
-
-    // ============================================
-// TABLE 1: PREDICTION QUALITY METRICS (Table 2)
-// ============================================
-    private fun buildQualityMetricsTable() {
-        val container = findViewById<LinearLayout>(R.id.qualityTableContainer)
-        container.removeAllViews()
-
-        if (modelStats.isEmpty()) return
-
-        // Header Row
-        val headerRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setBackgroundColor(getColor(R.color.quality_header))  // Purple
-            setPadding(0, 12, 0, 12)
-        }
-
-        headerRow.addView(createHeaderCell("Model Name", 200))
-        headerRow.addView(createDivider())
-        headerRow.addView(createHeaderCell("F1 Score", 90))
-        headerRow.addView(createHeaderCell("Precision", 90))
-        headerRow.addView(createHeaderCell("Recall", 90))
-        headerRow.addView(createHeaderCell("Accuracy", 90))
-        headerRow.addView(createHeaderCell("EMR", 80))
-        headerRow.addView(createHeaderCell("Hamming\nLoss", 90))
-        headerRow.addView(createHeaderCell("FNR", 80))
-
-        container.addView(headerRow)
-        container.addView(createHorizontalDivider())
-
-        // Data Rows
-        for ((index, model) in modelStats.withIndex()) {
-            val dataRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
-                setBackgroundColor(getColor(bgColor))
-                setPadding(0, 16, 0, 16)
-            }
-
-            // Model Name
-            dataRow.addView(createModelNameCell(model.modelName, 200))
-            dataRow.addView(createDivider())
-
-            // Quality Metrics
-            dataRow.addView(createDataCell(String.format("%.3f", model.avgF1), 90, "#6200EA", bold = true))
-            dataRow.addView(createDataCell(String.format("%.3f", model.avgPrecision), 90))
-            dataRow.addView(createDataCell(String.format("%.3f", model.avgRecall), 90))
-            dataRow.addView(createDataCell(String.format("%.3f", model.avgAccuracy), 90))
-            dataRow.addView(createDataCell("${(model.exactMatchRate * 100).toInt()}%", 80))
-            dataRow.addView(createDataCell(String.format("%.3f", model.avgHammingLoss), 90))
-            dataRow.addView(createDataCell("${(model.avgFNR * 100).toInt()}%", 80, "#F44336"))
-
-            container.addView(dataRow)
-            container.addView(createHorizontalDivider())
-        }
-    }
-
-    // ============================================
-// TABLE 2: SAFETY METRICS (Table 3)
-// ============================================
-    private fun buildSafetyMetricsTable() {
-        val container = findViewById<LinearLayout>(R.id.safetyTableContainer)
-        container.removeAllViews()
-
-        if (modelStats.isEmpty()) return
-
-        // Header Row
-        val headerRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setBackgroundColor(getColor(R.color.safety_header))  // Orange
-            setPadding(0, 12, 0, 12)
-        }
-
-        headerRow.addView(createHeaderCell("Model Name", 200))
-        headerRow.addView(createDivider())
-        headerRow.addView(createHeaderCell("Hallucination\nRate", 120))
-        headerRow.addView(createHeaderCell("Over-Prediction\nRate", 130))
-        headerRow.addView(createHeaderCell("Abstention\nAccuracy", 120))
-
-        container.addView(headerRow)
-        container.addView(createHorizontalDivider())
-
-        // Data Rows
-        for ((index, model) in modelStats.withIndex()) {
-            val dataRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
-                setBackgroundColor(getColor(bgColor))
-                setPadding(0, 16, 0, 16)
-            }
-
-            // Model Name
-            dataRow.addView(createModelNameCell(model.modelName, 200))
-            dataRow.addView(createDivider())
-
-            // Safety Metrics
-            dataRow.addView(createDataCell("${(model.hallucinationRate * 100).toInt()}%", 120, "#F44336", bold = true))
-            dataRow.addView(createDataCell("${(model.overPredictionRate * 100).toInt()}%", 130, "#FF9800", bold = true))
-            dataRow.addView(createDataCell("${(model.abstentionAccuracy * 100).toInt()}%", 120, "#4CAF50", bold = true))
-
-            container.addView(dataRow)
-            container.addView(createHorizontalDivider())
-        }
-    }
-
-    // ============================================
-// TABLE 3: EFFICIENCY METRICS (Table 4)
-// ============================================
-    private fun buildEfficiencyMetricsTable() {
-        val container = findViewById<LinearLayout>(R.id.efficiencyTableContainer)
-        container.removeAllViews()
-
-        if (modelStats.isEmpty()) return
-
-        // Header Row
-        val headerRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setBackgroundColor(getColor(R.color.efficiency_header))  // Blue
-            setPadding(0, 12, 0, 12)
-        }
-
-        headerRow.addView(createHeaderCell("Model Name", 200))
-        headerRow.addView(createDivider())
-        headerRow.addView(createHeaderCell("Avg\nLatency", 90))
-        headerRow.addView(createHeaderCell("TTFT", 90))
-        headerRow.addView(createHeaderCell("ITPS", 80))
-        headerRow.addView(createHeaderCell("OTPS", 80))
-        headerRow.addView(createHeaderCell("OET", 90))
-        headerRow.addView(createHeaderCell("Total\nTime", 90))
-        headerRow.addView(createHeaderCell("Java\nHeap", 90))
-        headerRow.addView(createHeaderCell("Native\nHeap", 90))
-        headerRow.addView(createHeaderCell("PSS", 90))
-
-        container.addView(headerRow)
-        container.addView(createHorizontalDivider())
-
-        // Data Rows
-        for ((index, model) in modelStats.withIndex()) {
-            val dataRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
-                setBackgroundColor(getColor(bgColor))
-                setPadding(0, 16, 0, 16)
-            }
-
-            // Model Name
-            dataRow.addView(createModelNameCell(model.modelName, 200))
-            dataRow.addView(createDivider())
-
-            // Efficiency Metrics
-            dataRow.addView(createDataCell("${(model.avgLatency / 1000).toInt()}s", 90, "#2196F3", bold = true))
-            dataRow.addView(createDataCell("${model.avgTTFT.toInt()}ms", 90))
-            dataRow.addView(createDataCell("${model.avgITPS.toInt()}", 80))
-            dataRow.addView(createDataCell("${model.avgOTPS.toInt()}", 80))
-            dataRow.addView(createDataCell("${model.avgOET.toInt()}ms", 90))
-            dataRow.addView(createDataCell("${model.avgTotalTime.toInt()}ms", 90))
-
-            val javaMB = (model.avgJavaHeap / 1024).toInt()
-            val nativeMB = (model.avgNativeHeap / 1024).toInt()
-            val pssMB = (model.avgPSS / 1024).toInt()
-
-            dataRow.addView(createDataCell("${javaMB}MB", 90))
-            dataRow.addView(createDataCell("${nativeMB}MB", 90))
-            dataRow.addView(createDataCell("${pssMB}MB", 90))
-
-            container.addView(dataRow)
-            container.addView(createHorizontalDivider())
-        }
-    }
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-    private fun createHeaderCell(text: String, widthDp: Int): TextView {
-        return TextView(this).apply {
-            this.text = text
-            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
-            setPadding(12, 0, 12, 0)
-            textSize = 13f
-            setTextColor(getColor(R.color.white))
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            gravity = android.view.Gravity.CENTER
-        }
-    }
-
-    private fun createModelNameCell(text: String, widthDp: Int): TextView {
-        return TextView(this).apply {
-            this.text = text
-            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
-            setPadding(12, 0, 12, 0)
-            textSize = 14f
-            setTextColor(getColor(R.color.text_primary))
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
-        }
-    }
-
-    private fun createDataCell(
-        text: String,
-        widthDp: Int,
-        colorHex: String? = null,
-        bold: Boolean = false
-    ): TextView {
-        return TextView(this).apply {
-            this.text = text
-            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
-            setPadding(12, 0, 12, 0)
-            textSize = 13f
-            val color = if (colorHex != null) {
-                android.graphics.Color.parseColor(colorHex)
-            } else {
-                getColor(R.color.text_primary)
-            }
-            setTextColor(color)
-            if (bold) {
-                setTypeface(null, android.graphics.Typeface.BOLD)
-            }
-            gravity = android.view.Gravity.CENTER
-        }
-    }
-
-    private fun createDivider(): View {
-        return View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(2), LinearLayout.LayoutParams.MATCH_PARENT)
-            setBackgroundColor(getColor(R.color.divider))
-        }
-    }
-
-    private fun createHorizontalDivider(): View {
-        return View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1))
-            setBackgroundColor(getColor(R.color.divider))
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int {
-        return (dp * resources.displayMetrics.density).toInt()
-    }
-
     private fun displayBestModel() {
         val bestModel = modelStats.firstOrNull() ?: return
 
@@ -660,7 +297,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         bestModelF1Text.text = "F1: ${String.format("%.3f", bestModel.avgF1)} (${String.format("%.1f", bestModel.avgF1 * 100)}%)"
         bestModelCountText.text = "${bestModel.predictionCount} predictions | Avg latency: ${(bestModel.avgLatency / 1000).toInt()}s"
     }
-
     private fun displayChampionModels() {
         // Best Accuracy Model
         val bestAccuracyModel = modelStats.maxByOrNull { it.avgAccuracy }
@@ -684,7 +320,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             fastestLatencyText.text = "Avg Latency: ${String.format("%.1f", latencySec)}s"
         }
     }
-
     private fun exportToExcel() {
         if (allPredictions.isEmpty()) {
             Toast.makeText(this, "No data to export", Toast.LENGTH_SHORT).show()
@@ -717,38 +352,39 @@ class EnhancedDashboardActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun createExcelFile(predictions: List<PredictionResult>): File {
         val workbook = XSSFWorkbook()
-
-        // Group by model
         val byModel = predictions.groupBy { it.modelName }
 
         for ((modelName, modelPredictions) in byModel) {
             val sheet = workbook.createSheet(modelName.take(31))
 
-            // Create header row with ALL metrics
+            // 1. UPDATE HEADERS
             val headerRow = sheet.createRow(0)
             val headers = listOf(
-                // Basic
                 "ID", "Name", "Ingredients", "Ground Truth", "Predicted",
-                // Table 2: Quality
                 "TP", "FP", "FN", "TN",
                 "Precision", "Recall", "F1", "Accuracy",
                 "Exact Match", "Hamming Loss", "FNR",
-                // Table 3: Safety
-                "Hallucination", "Over-Prediction",
-                // Table 4: Efficiency
+
+                // SAFETY & ERRORS (Updated)
+                "Hallucination Count", "Hallucinated Allergens", // Added Details
+                "Over-Pred Count", "Over-Pred Allergens",        // Added Details
+                "Is Safety Test?", "Safety Check Result",        // Added Abstention
+
+                // EFFICIENCY
                 "Latency (ms)", "TTFT (ms)", "ITPS", "OTPS", "OET (ms)", "Total (ms)",
                 "Java Heap (KB)", "Native Heap (KB)", "PSS (KB)",
-                "Model"
+
+                // CONTEXT
+                "Device Model", "Model" // Added Device
             )
 
             headers.forEachIndexed { index, header ->
                 headerRow.createCell(index).setCellValue(header)
             }
 
-            // Create data rows
+            // 2. UPDATE DATA ROWS
             modelPredictions.forEachIndexed { index, result ->
                 val row = sheet.createRow(index + 1)
                 var colIndex = 0
@@ -760,7 +396,7 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 row.createCell(colIndex++).setCellValue(result.allergensMapped)
                 row.createCell(colIndex++).setCellValue(result.predictedAllergens)
 
-                // Table 2: Quality
+                // Quality
                 row.createCell(colIndex++).setCellValue(result.truePositives.toDouble())
                 row.createCell(colIndex++).setCellValue(result.falsePositives.toDouble())
                 row.createCell(colIndex++).setCellValue(result.falseNegatives.toDouble())
@@ -773,10 +409,23 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 row.createCell(colIndex++).setCellValue(result.hammingLoss)
                 row.createCell(colIndex++).setCellValue(result.falseNegativeRate)
 
-                // Table 3: Safety
+                // Safety & Errors
                 row.createCell(colIndex++).setCellValue(result.hallucinationCount.toDouble())
+                row.createCell(colIndex++).setCellValue(result.hallucinatedAllergens) // NEW
+
                 row.createCell(colIndex++).setCellValue(result.overPredictionCount.toDouble())
-                // Table 4: Efficiency
+                row.createCell(colIndex++).setCellValue(result.overPredictedAllergens) // NEW
+
+                // Abstention Logic
+                if (result.isAbstentionCase) {
+                    row.createCell(colIndex++).setCellValue("Yes")
+                    row.createCell(colIndex++).setCellValue(if (result.isAbstentionCorrect) "PASSED" else "FAILED")
+                } else {
+                    row.createCell(colIndex++).setCellValue("No")
+                    row.createCell(colIndex++).setCellValue("N/A")
+                }
+
+                // Efficiency
                 row.createCell(colIndex++).setCellValue(result.latencyMs.toDouble())
                 row.createCell(colIndex++).setCellValue(result.ttftMs.toDouble())
                 row.createCell(colIndex++).setCellValue(result.itps.toDouble())
@@ -786,6 +435,9 @@ class EnhancedDashboardActivity : AppCompatActivity() {
                 row.createCell(colIndex++).setCellValue(result.javaHeapKb.toDouble())
                 row.createCell(colIndex++).setCellValue(result.nativeHeapKb.toDouble())
                 row.createCell(colIndex++).setCellValue(result.totalPssKb.toDouble())
+
+                // Context
+                row.createCell(colIndex++).setCellValue(result.deviceModel) // NEW
                 row.createCell(colIndex++).setCellValue(result.modelName)
             }
         }
@@ -794,7 +446,6 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val timestamp = System.currentTimeMillis()
         val file = File(downloadsDir, "SLM_All_Metrics_$timestamp.xlsx")
-
         FileOutputStream(file).use { outputStream ->
             workbook.write(outputStream)
         }
@@ -802,5 +453,205 @@ class EnhancedDashboardActivity : AppCompatActivity() {
         workbook.close()
 
         return file
+    }
+
+    private fun build3SeparateTables() {
+        buildQualityMetricsTable()
+        buildSafetyMetricsTable()
+        buildEfficiencyMetricsTable()
+    }
+
+    // ============================================
+    // TABLE BUILDING (With Sort Keys)
+    // ============================================
+
+    private fun buildQualityMetricsTable() {
+        val fixedContainer = findViewById<LinearLayout>(R.id.qualityFixedColumn)
+        val scrollContainer = findViewById<LinearLayout>(R.id.qualityScrollableContent)
+        if (fixedContainer == null) return
+        fixedContainer.removeAllViews(); scrollContainer.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+
+        fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.quality_header))
+        val headerRow = createHeaderRowContainer(R.color.quality_header)
+
+        // PASS SORT KEYS
+        headerRow.addView(createHeaderCell("F1 Score", 90, "F1 Score"))
+        headerRow.addView(createHeaderCell("Precision", 90, "Precision"))
+        headerRow.addView(createHeaderCell("Recall", 90, "Recall"))
+        headerRow.addView(createHeaderCell("Accuracy", 90, "Accuracy"))
+        headerRow.addView(createHeaderCell("EMR", 80, "EMR"))
+        headerRow.addView(createHeaderCell("Hamming\nLoss", 90, "Hamming Loss"))
+        headerRow.addView(createHeaderCell("FNR", 80, "FNR"))
+        scrollContainer.addView(headerRow)
+
+        for ((index, model) in modelStats.withIndex()) {
+            val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+            fixedContainer.addView(createFixedDataCell(model.modelName, bgColor))
+            val dataRow = createDataRowContainer(bgColor)
+
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgF1), 90, "#6200EA", true))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgPrecision), 90))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgRecall), 90))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgAccuracy), 90))
+            dataRow.addView(createDataCell("${(model.exactMatchRate * 100).toInt()}%", 80))
+            dataRow.addView(createDataCell(String.format("%.3f", model.avgHammingLoss), 90))
+            dataRow.addView(createDataCell("${(model.avgFNR * 100).toInt()}%", 80, "#F44336"))
+            scrollContainer.addView(dataRow)
+        }
+    }
+
+    private fun buildSafetyMetricsTable() {
+        val fixedContainer = findViewById<LinearLayout>(R.id.safetyFixedColumn)
+        val scrollContainer = findViewById<LinearLayout>(R.id.safetyScrollableContent)
+        if (fixedContainer == null) return
+        fixedContainer.removeAllViews(); scrollContainer.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+        fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.safety_header))
+        val headerRow = createHeaderRowContainer(R.color.safety_header)
+
+        headerRow.addView(createHeaderCell("Hallucination\nRate", 120, "Hallucination Rate"))
+        headerRow.addView(createHeaderCell("Over-Prediction\nRate", 130, "Over-Prediction Rate"))
+        headerRow.addView(createHeaderCell("Abstention\nAccuracy", 120, "Abstention Accuracy"))
+        scrollContainer.addView(headerRow)
+
+        for ((index, model) in modelStats.withIndex()) {
+            val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+            fixedContainer.addView(createFixedDataCell(model.modelName, bgColor))
+            val dataRow = createDataRowContainer(bgColor)
+            dataRow.addView(createDataCell("${(model.hallucinationRate * 100).toInt()}%", 120, "#F44336", true))
+            dataRow.addView(createDataCell("${(model.overPredictionRate * 100).toInt()}%", 130, "#FF9800", true))
+            dataRow.addView(createDataCell("${(model.abstentionAccuracy * 100).toInt()}%", 120, "#4CAF50", true))
+            scrollContainer.addView(dataRow)
+        }
+    }
+
+    private fun buildEfficiencyMetricsTable() {
+        val fixedContainer = findViewById<LinearLayout>(R.id.efficiencyFixedColumn)
+        val scrollContainer = findViewById<LinearLayout>(R.id.efficiencyScrollableContent)
+        if (fixedContainer == null) return
+        fixedContainer.removeAllViews(); scrollContainer.removeAllViews()
+
+        if (modelStats.isEmpty()) return
+        fixedContainer.addView(createFixedHeaderCell("Model Name", R.color.efficiency_header))
+        val headerRow = createHeaderRowContainer(R.color.efficiency_header)
+
+        headerRow.addView(createHeaderCell("Avg\nLatency", 90, "Avg Latency"))
+        headerRow.addView(createHeaderCell("TTFT", 90, "TTFT"))
+        headerRow.addView(createHeaderCell("ITPS", 80, "ITPS"))
+        headerRow.addView(createHeaderCell("OTPS", 80, "OTPS"))
+        headerRow.addView(createHeaderCell("OET", 90, "OET"))
+        headerRow.addView(createHeaderCell("Total\nTime", 90, "Total Time"))
+        headerRow.addView(createHeaderCell("Java\nHeap", 90, "Java Heap"))
+        headerRow.addView(createHeaderCell("Native\nHeap", 90, "Native Heap"))
+        headerRow.addView(createHeaderCell("PSS", 90, "PSS"))
+        scrollContainer.addView(headerRow)
+
+        for ((index, model) in modelStats.withIndex()) {
+            val bgColor = if (index % 2 == 0) R.color.row_even else R.color.row_odd
+            fixedContainer.addView(createFixedDataCell(model.modelName, bgColor))
+            val dataRow = createDataRowContainer(bgColor)
+            dataRow.addView(createDataCell("${(model.avgLatency / 1000).toInt()}s", 90, "#2196F3", true))
+            dataRow.addView(createDataCell("${model.avgTTFT.toInt()}ms", 90))
+            dataRow.addView(createDataCell("${model.avgITPS.toInt()}", 80))
+            dataRow.addView(createDataCell("${model.avgOTPS.toInt()}", 80))
+            dataRow.addView(createDataCell("${model.avgOET.toInt()}ms", 90))
+            dataRow.addView(createDataCell("${model.avgTotalTime.toInt()}ms", 90))
+            dataRow.addView(createDataCell("${(model.avgJavaHeap/1024).toInt()}MB", 90))
+            dataRow.addView(createDataCell("${(model.avgNativeHeap/1024).toInt()}MB", 90))
+            dataRow.addView(createDataCell("${(model.avgPSS/1024).toInt()}MB", 90))
+            scrollContainer.addView(dataRow)
+        }
+    }
+
+    // ============================================
+    // UPDATED HELPER FUNCTIONS
+    // ============================================
+
+    private fun createHeaderRowContainer(colorResId: Int): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dpToPx(45))
+            setBackgroundColor(getColor(colorResId))
+        }
+    }
+
+    private fun createDataRowContainer(colorResId: Int): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dpToPx(55))
+            setBackgroundColor(getColor(colorResId))
+        }
+    }
+
+    private fun createFixedHeaderCell(text: String, colorResId: Int): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(45))
+            setBackgroundColor(getColor(colorResId))
+            setPadding(12, 0, 12, 0)
+            textSize = 13f
+            setTextColor(getColor(R.color.white))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+        }
+    }
+
+    private fun createFixedDataCell(text: String, colorResId: Int): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(55))
+            setBackgroundColor(getColor(colorResId))
+            setPadding(12, 0, 12, 0)
+            textSize = 14f
+            setTextColor(getColor(R.color.text_primary))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+    }
+
+    // UPDATED: Now accepts a sortKey and sets Click Listener
+    private fun createHeaderCell(text: String, widthDp: Int, sortKey: String): TextView {
+        return TextView(this).apply {
+            var displayText = text
+            // Add arrow if active
+            if (currentSortColumn == sortKey) {
+                displayText += if (isAscending) " ⬆️" else " ⬇️"
+            }
+            this.text = displayText
+
+            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.MATCH_PARENT)
+            setPadding(12, 0, 12, 0)
+            textSize = 13f
+            setTextColor(getColor(R.color.white))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+
+            // CLICK TO SORT
+            setOnClickListener {
+                sortDataBy(sortKey)
+            }
+        }
+    }
+
+    private fun createDataCell(text: String, widthDp: Int, colorHex: String? = null, bold: Boolean = false): TextView {
+        return TextView(this).apply {
+            this.text = text
+            layoutParams = LinearLayout.LayoutParams(dpToPx(widthDp), LinearLayout.LayoutParams.MATCH_PARENT)
+            setPadding(12, 0, 12, 0)
+            textSize = 13f
+            val color = if (colorHex != null) Color.parseColor(colorHex) else getColor(R.color.text_primary)
+            setTextColor(color)
+            if (bold) setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
     }
 }

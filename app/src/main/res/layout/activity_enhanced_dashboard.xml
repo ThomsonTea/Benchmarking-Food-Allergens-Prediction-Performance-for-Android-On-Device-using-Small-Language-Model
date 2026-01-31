@@ -11,7 +11,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,8 +22,10 @@
                 android:layout_height="40dp"
                 android:layout_alignParentStart="true"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_arrow_back"
-                android:contentDescription="Back" />
+                app:tint="#000000"
+                android:contentDescription="Back"
+                android:hapticFeedbackEnabled="false"
+                android:src="@drawable/ic_arrow_back" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -45,7 +46,6 @@
                 android:contentDescription="Refresh" />
         </RelativeLayout>
 
-        <!-- Loading Progress -->
         <ProgressBar
             android:id="@+id/dashboardProgressBar"
             android:layout_width="match_parent"
@@ -53,7 +53,6 @@
             android:layout_marginVertical="32dp"
             android:visibility="gone" />
 
-        <!-- Empty State -->
         <TextView
             android:id="@+id/emptyText"
             android:layout_width="match_parent"
@@ -65,7 +64,6 @@
             android:textColor="#999999"
             android:visibility="gone" />
 
-        <!-- Overall Stats Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/overallStatsCard"
             android:layout_width="match_parent"
@@ -151,7 +149,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Best Model Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/bestModelCard"
             android:layout_width="match_parent"
@@ -198,7 +195,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Champion Models Grid -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -215,7 +211,6 @@
             android:weightSum="3"
             android:layout_marginBottom="24dp">
 
-            <!-- Best Accuracy -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -262,7 +257,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Best F1 -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -309,7 +303,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Fastest -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -356,9 +349,7 @@
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <!-- ============================================ -->
-        <!-- TABLE 1: PREDICTION QUALITY METRICS (Table 2) -->
-        <!-- ============================================ -->
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -369,26 +360,43 @@
             android:layout_marginBottom="12dp"
             android:layout_marginTop="8dp" />
 
-        <HorizontalScrollView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:scrollbars="horizontal"
-            android:layout_marginBottom="24dp">
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp"
+            android:elevation="2dp"
+            android:background="#FFFFFF">
 
             <LinearLayout
-                android:id="@+id/qualityTableContainer"
-                android:layout_width="wrap_content"
+                android:id="@+id/qualityFixedColumn"
+                android:layout_width="120dp"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="#FFFFFF"
-                android:elevation="2dp">
-                <!-- Table will be built dynamically -->
+                android:background="#F9F9F9"
+                android:paddingEnd="1dp">
             </LinearLayout>
-        </HorizontalScrollView>
 
-        <!-- ============================================ -->
-        <!-- TABLE 2: SAFETY METRICS (Table 3) -->
-        <!-- ============================================ -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#E0E0E0"/>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/qualityScrollableContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                </LinearLayout>
+            </HorizontalScrollView>
+        </LinearLayout>
+
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -399,26 +407,41 @@
             android:layout_marginBottom="12dp"
             android:layout_marginTop="8dp" />
 
-        <HorizontalScrollView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:scrollbars="horizontal"
-            android:layout_marginBottom="24dp">
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp"
+            android:elevation="2dp"
+            android:background="#FFFFFF">
 
             <LinearLayout
-                android:id="@+id/safetyTableContainer"
-                android:layout_width="wrap_content"
+                android:id="@+id/safetyFixedColumn"
+                android:layout_width="120dp"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="#FFFFFF"
-                android:elevation="2dp">
-                <!-- Table will be built dynamically -->
-            </LinearLayout>
-        </HorizontalScrollView>
+                android:background="#F9F9F9"
+                android:paddingEnd="1dp" />
 
-        <!-- ============================================ -->
-        <!-- TABLE 3: EFFICIENCY METRICS (Table 4) -->
-        <!-- ============================================ -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#E0E0E0"/>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/safetyScrollableContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -429,24 +452,41 @@
             android:layout_marginBottom="12dp"
             android:layout_marginTop="8dp" />
 
-        <HorizontalScrollView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:scrollbars="horizontal"
-            android:layout_marginBottom="24dp">
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp"
+            android:elevation="2dp"
+            android:background="#FFFFFF">
 
             <LinearLayout
-                android:id="@+id/efficiencyTableContainer"
-                android:layout_width="wrap_content"
+                android:id="@+id/efficiencyFixedColumn"
+                android:layout_width="120dp"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="#FFFFFF"
-                android:elevation="2dp">
-                <!-- Table will be built dynamically -->
-            </LinearLayout>
-        </HorizontalScrollView>
+                android:background="#F9F9F9"
+                android:paddingEnd="1dp" />
 
-        <!-- Action Buttons -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#E0E0E0"/>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/efficiencyScrollableContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
