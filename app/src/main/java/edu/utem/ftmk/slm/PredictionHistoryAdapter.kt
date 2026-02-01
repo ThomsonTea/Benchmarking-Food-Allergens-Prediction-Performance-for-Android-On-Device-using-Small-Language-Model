@@ -111,7 +111,7 @@ class PredictionHistoryAdapter(
         // Basic info
         holder.productName.text = prediction.name
         holder.modelName.text = prediction.modelName
-        holder.groundTruth.text = "Actual: ${prediction.allergensMapped}"
+        holder.groundTruth.text = "Ground Truth: ${prediction.allergensMapped}"
         holder.predicted.text = "Predicted: ${prediction.predictedAllergens}"
 
         // === QUALITY METRICS (Table 2) ===
