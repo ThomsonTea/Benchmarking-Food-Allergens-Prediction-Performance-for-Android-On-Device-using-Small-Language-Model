@@ -239,7 +239,8 @@ class EnhancedDashboardActivity : AppCompatActivity() {
     }
 
     private fun calculateModelStatistics() {
-        val byModel = allPredictions.groupBy { it.modelName }
+        val filteredPredictions = allPredictions.filter { it.modelName != "Unknown" }
+        val byModel = filteredPredictions.groupBy { it.modelName }
         modelStats.clear()
         for ((modelName, preds) in byModel) {
             val avgPrecision = preds.map { it.precision }.average()
