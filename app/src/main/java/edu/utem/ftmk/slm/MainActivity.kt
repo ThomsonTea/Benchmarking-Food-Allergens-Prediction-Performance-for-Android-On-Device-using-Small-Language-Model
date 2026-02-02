@@ -623,7 +623,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ===== BATCH PROCESSING =====
-
     private fun initializeBatchProcessing() {
         val processAllButton = findViewById<Button>(R.id.processAllButton)
 
@@ -643,39 +642,67 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            // 1. Create the Input Field programmatically
+            val input = EditText(this)
+            input.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            input.hint = "Start Item # (Default: 1)"
+            input.setText("1") // Default value
+
+            // 2. Create a container to add margins (so it looks nice)
+            val container = FrameLayout(this)
+            val params = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            params.leftMargin = 50 // Pixel margins
+            params.rightMargin = 50
+            input.layoutParams = params
+            container.addView(input)
+
+            // 3. Build the Dialog
             AlertDialog.Builder(this)
                 .setTitle("Optimal Batch Processing")
-                .setMessage(
-                    "Process all ${allFoodItems.size} items with optimizations:\n\n" +
-                            "✓ Context clearing (prevents memory buildup)\n" +
-                            "✓ Auto-retry on failure (3 attempts)\n" +
-                            "✓ Memory monitoring\n" +
-                            "✓ Checkpoints every 50 items\n" +
-                            "✓ Input validation\n\n" +
-                            "Model: $currentModelName\n" +
-                            "Estimated time: 2-3 hours\n\n" +
-                            "Keep phone plugged in!\n" +
-                            "Continue?"
-                )
-                .setPositiveButton("Yes, Start Optimal Processing") { _, _ ->
-                    startOptimalBatchProcessing()
+                .setMessage("Enter the Item Number to start from (e.g. 50):")
+                .setView(container) // <--- THIS LINE ADDS THE EDITTEXT TO THE UI
+                .setPositiveButton("Start") { _, _ ->
+                    // Get the number the user typed
+                    val inputStr = input.text.toString()
+                    val startInput = if (inputStr.isNotEmpty()) inputStr.toInt() else 1
+
+                    // Convert 1-based (Human) to 0-based (Array)
+                    // If user types 50, we start at index 49
+                    val startIndex = (startInput - 1).coerceAtLeast(0)
+
+                    if (startIndex < allFoodItems.size) {
+                        // Pass the index to the start function
+                        startOptimalBatchProcessing(startIndex)
+                    } else {
+                        Toast.makeText(this, "Start number too high!", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
     }
 
-    private fun startOptimalBatchProcessing() {
+    // 1. Add 'startIndex' parameter here
+    private fun startOptimalBatchProcessing(startIndex: Int = 0) {
         isProcessingAll = true
 
         val batchProgressBar = findViewById<ProgressBar>(R.id.batchProgressBar)
         val batchProgressText = findViewById<TextView>(R.id.batchProgressText)
         val processAllButton = findViewById<Button>(R.id.processAllButton)
 
+        // 1. INITIALIZE UI IMMEDIATELY
         batchProgressBar.visibility = View.VISIBLE
         batchProgressText.visibility = View.VISIBLE
         batchProgressBar.max = allFoodItems.size
-        batchProgressBar.progress = 0
+
+        // Set visual progress to where we are starting (e.g., 50)
+        batchProgressBar.progress = startIndex
+
+        // Set text immediately so it doesn't say "0/200"
+        batchProgressText.text = "$startIndex/${allFoodItems.size} | Starting..."
 
         processAllButton.isEnabled = false
         processAllButton.text = "PROCESSING..."
@@ -684,9 +711,7 @@ class MainActivity : AppCompatActivity() {
         datasetSpinner.isEnabled = false
         modelSpinner.isEnabled = false
 
-        Log.i(TAG, "=== OPTIMAL BATCH PROCESSING START ===")
-        Log.i(TAG, "Model: $currentModelName")
-        Log.i(TAG, "Total items: ${allFoodItems.size}")
+        Log.i(TAG, "=== OPTIMAL BATCH START (From Item #${startIndex + 1}) ===")
 
         val stats = BatchStatistics(
             totalItems = allFoodItems.size,
@@ -695,9 +720,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
-            val modelFilePath = withContext(Dispatchers.IO) {
-                copyModelFromAssets()?.absolutePath
-            }
+            val modelFilePath = withContext(Dispatchers.IO) { copyModelFromAssets()?.absolutePath }
 
             if (modelFilePath == null) {
                 withContext(Dispatchers.Main) {
@@ -712,162 +735,85 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.IO) {
 
-                for ((index, item) in allFoodItems.withIndex()) {
+                // 2. LOOP FROM START INDEX
+                for (i in startIndex until allFoodItems.size) {
+
                     if (!isProcessingAll) {
-                        Log.w(TAG, "⚠️ Batch processing cancelled by user")
+                        Log.w(TAG, "⚠️ Cancelled by user")
                         break
                     }
 
-                    val itemNumber = index + 1
-                    Log.i(TAG, "")
-                    Log.i(TAG, "=".repeat(70))
+                    val item = allFoodItems[i]
+                    val itemNumber = i + 1  // e.g., 51
+
                     Log.i(TAG, "Processing [$itemNumber/${stats.totalItems}]: ${item.name}")
-                    Log.i(TAG, "=".repeat(70))
 
-                    if (index > 0 && index % 10 == 0) {
-                        val timeSinceCheckpoint = (System.currentTimeMillis() - stats.lastCheckpointTime) / 1000
-                        Log.i(TAG, "")
-                        Log.i(TAG, "🏁 CHECKPOINT at item $itemNumber (${timeSinceCheckpoint}s since last)")
-                        Log.i(TAG, "Stats: ✓${stats.successCount} ❌${stats.failCount} 🔄${stats.retryCount}")
-
-                        val reloadSuccess = reloadModelSafely(modelFilePath)
-
-                        if (!reloadSuccess) {
-                            Log.e(TAG, "❌ Failed to reload at checkpoint $itemNumber")
-                            Log.e(TAG, "Stopping batch processing")
-                            break
-                        }
-
+                    // Checkpoint logic (Reload model every 10 items)
+                    if (i > startIndex && i % 10 == 0) {
+                        reloadModelSafely(modelFilePath)
                         stats.lastCheckpointTime = System.currentTimeMillis()
                     }
 
+                    // Run Prediction
                     val result = predictWithRetryAndSafety(item, deviceInfo, androidVersion, maxRetries = 3)
 
                     if (result != null) {
                         saveToFirebase(result)
                         stats.successCount++
-
-                        Log.i(TAG, "✓ [$itemNumber/${stats.totalItems}] ${item.name}")
-                        Log.i(TAG, "   Predicted: ${result.predictedAllergens}")
-                        Log.i(TAG, "   F1: ${String.format("%.3f", result.f1Score)}")
-                        Log.i(TAG, "   Accuracy: ${String.format("%.3f", result.accuracy)}")
-                        Log.i(TAG, "   Latency: ${result.latencyMs}ms")
                     } else {
                         stats.failedItems.add(item)
                         stats.failCount++
-
-                        Log.e(TAG, "✗ [$itemNumber/${stats.totalItems}] ${item.name} - FAILED")
                     }
 
+                    // 3. UPDATE UI & ESTIMATE TIME
                     withContext(Dispatchers.Main) {
                         batchProgressBar.progress = itemNumber
 
-                        val percentage = (itemNumber * 100) / stats.totalItems
-                        val elapsed = (System.currentTimeMillis() - stats.startTime) / 1000
-                        val estimated = if (itemNumber > 0) {
-                            (elapsed * stats.totalItems / itemNumber) - elapsed
-                        } else 0
+                        // Calculate Time
+                        val currentTime = System.currentTimeMillis()
+                        val timeElapsed = (currentTime - stats.startTime) / 1000 // Seconds elapsed
 
-                        batchProgressText.text = "$itemNumber/${stats.totalItems} ($percentage%) | " +
+                        // How many items have we done *in this session*?
+                        val itemsProcessedThisSession = (i - startIndex) + 1
+
+                        // Calculate estimated time remaining
+                        var timeString = "${timeElapsed/60}m elapsed"
+
+                        if (itemsProcessedThisSession > 0) {
+                            val avgTimePerItem = timeElapsed.toDouble() / itemsProcessedThisSession
+                            val itemsRemaining = allFoodItems.size - itemNumber
+                            val secondsRemaining = avgTimePerItem * itemsRemaining
+
+                            timeString += " (~${(secondsRemaining/60).toInt()}m left)"
+                        }
+
+                        // Update Text
+                        batchProgressText.text = "$itemNumber/${stats.totalItems} | " +
                                 "✓${stats.successCount} ❌${stats.failCount} | " +
-                                "⏱️${elapsed/60}m / ~${estimated/60}m"
+                                timeString
                     }
 
+                    // Small delay to let UI breathe
                     Thread.sleep(500)
                 }
 
-                if (stats.failedItems.isNotEmpty() && isProcessingAll) {
-                    Log.i(TAG, "")
-                    Log.i(TAG, "=".repeat(70))
-                    Log.i(TAG, "🔄 RETRY PHASE: ${stats.failedItems.size} failed items")
-                    Log.i(TAG, "=".repeat(70))
+                // 4. CLEANUP & FINISH
+                try { unloadModel() } catch (e: Exception) {}
 
-                    val retryItems = stats.failedItems.toList()
-                    stats.failedItems.clear()
+                withContext(Dispatchers.Main) {
+                    isProcessingAll = false
+                    resetBatchUI()
 
-                    for ((retryIndex, item) in retryItems.withIndex()) {
-                        if (!isProcessingAll) break
+                    val totalTimeMin = (System.currentTimeMillis() - stats.startTime) / 1000 / 60
+                    val message = "Done! Processed ${stats.successCount + stats.failCount} items in ${totalTimeMin}min"
 
-                        Log.i(TAG, "🔄 Retry [${retryIndex + 1}/${retryItems.size}]: ${item.name}")
-
-                        clearContext()
-                        System.gc()
-                        Thread.sleep(1000)
-
-                        val result = predictWithRetryAndSafety(item, deviceInfo, androidVersion, maxRetries = 2)
-
-                        if (result != null) {
-                            saveToFirebase(result)
-                            stats.successCount++
-                            stats.failCount--
-                            stats.retryCount++
-                            Log.i(TAG, "✓ Retry successful: ${item.name}")
-                        } else {
-                            stats.failedItems.add(item)
-                            Log.e(TAG, "✗ Retry failed: ${item.name}")
-                        }
-                    }
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    batchProgressText.text = message
                 }
-
-                try {
-                    unloadModel()
-                    Log.i(TAG, "✓ Model unloaded")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Warning unloading final model: ${e.message}")
-                }
-            }
-
-            val totalTime = (System.currentTimeMillis() - stats.startTime) / 1000
-            val totalMin = totalTime / 60
-            val successRate = (stats.successCount * 100.0) / stats.totalItems
-
-            Log.i(TAG, "")
-            Log.i(TAG, "=".repeat(70))
-            Log.i(TAG, "=== BATCH PROCESSING COMPLETE ===")
-            Log.i(TAG, "=".repeat(70))
-            Log.i(TAG, "Total items: ${stats.totalItems}")
-            Log.i(TAG, "Successful: ${stats.successCount} (${String.format("%.1f", successRate)}%)")
-            Log.i(TAG, "Failed: ${stats.failCount}")
-            Log.i(TAG, "Retries: ${stats.retryCount}")
-            Log.i(TAG, "Time: ${totalTime}s (${totalMin}min)")
-            Log.i(TAG, "=".repeat(70))
-
-            if (stats.failedItems.isNotEmpty()) {
-                Log.w(TAG, "Failed items:")
-                stats.failedItems.forEach { Log.w(TAG, "  - ${it.name}") }
-            }
-
-            withContext(Dispatchers.Main) {
-                isProcessingAll = false
-
-                batchProgressText.text = if (stats.failCount == 0) {
-                    "✓ Perfect! ${stats.successCount}/${stats.totalItems} in ${totalMin}min"
-                } else {
-                    "✓ ${stats.successCount} ❌ ${stats.failCount} (${String.format("%.1f", successRate)}%) in ${totalMin}min"
-                }
-
-                processAllButton.text = "PROCESS ALL 200 ITEMS"
-                processAllButton.isEnabled = true
-                loadModelButton.isEnabled = true
-                predictButton.isEnabled = true
-                datasetSpinner.isEnabled = true
-                modelSpinner.isEnabled = true
-
-                val message = if (stats.failCount < 5) {
-                    "✓ Excellent! ${stats.successCount} items in ${totalMin} minutes"
-                } else {
-                    "⚠️ ${stats.successCount} successful, ${stats.failCount} failed\nTime: ${totalMin} minutes"
-                }
-
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-
-                showNotification(
-                    "Batch Processing Complete",
-                    "${stats.successCount}/${stats.totalItems} successful (${String.format("%.1f", successRate)}%)"
-                )
             }
         }
     }
+
 
     private fun resetBatchUI() {
         isProcessingAll = false
